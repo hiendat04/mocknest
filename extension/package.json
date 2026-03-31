@@ -1,0 +1,81 @@
+{
+  "name": "mocknest-extension",
+  "displayName": "MockNest",
+  "description": "Instantly spin up a local mock API server from your OpenAPI spec",
+  "version": "0.0.1",
+  "publisher": "dat-mai",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": ["workspaceContains:**/openapi.{yaml,yml,json}"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mocknest.startServer",
+        "title": "MockNest: Start Mock Server",
+        "icon": "$(play)"
+      },
+      {
+        "command": "mocknest.stopServer",
+        "title": "MockNest: Stop Mock Server",
+        "icon": "$(stop)"
+      },
+      {
+        "command": "mocknest.selectSpec",
+        "title": "MockNest: Select OpenAPI Spec File"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mocknest",
+          "title": "MockNest",
+          "icon": "$(server)"
+        }
+      ]
+    },
+    "views": {
+      "mocknest": [
+        {
+          "id": "mocknest.routeTree",
+          "name": "Mock Routes",
+          "icon": "$(list-tree)"
+        },
+        {
+          "id": "mocknest.requestLog",
+          "name": "Request Log",
+          "icon": "$(history)"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "MockNest",
+      "properties": {
+        "mocknest.port": {
+          "type": "number",
+          "default": 3001,
+          "description": "Port for the mock server"
+        },
+        "mocknest.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Auto-start mock server when workspace opens"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "watch": "tsc -watch -p tsconfig.json",
+    "lint": "tsc --noEmit -p tsconfig.json",
+    "vscode:prepublish": "npm run build"
+  },
+  "dependencies": {
+    "mocknest-core": "^0.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.14",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

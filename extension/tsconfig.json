@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "out",
+    "moduleResolution": "node",
+    "types": ["node", "vscode"]
+  },
+  "include": ["src"]
+}
