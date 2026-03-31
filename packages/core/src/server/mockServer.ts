@@ -33,9 +33,11 @@ export class MockServer {
 
         this.options.onRequest?.(route.method, req.path, route.statusCode);
 
+        // Artificial delay to simulate real network
         setTimeout(() => {
-          res.status(route.statusCode).json(fakeBody);
-        }, faker_delay());
+          res.setHeader("Content-Type", "application/json");
+          res.status(route.statusCode).send(JSON.stringify(fakeBody, null, 2));
+        }, 20);
       });
     }
 
@@ -47,7 +49,9 @@ export class MockServer {
   start(): Promise<void> {
     return new Promise((resolve) => {
       this.server = this.app.listen(this.options.port, () => {
-        console.log(`MockNest running on http://localhost:${this.options.port}`);
+        console.log(
+          `MockNest running on http://localhost:${this.options.port}`,
+        );
         resolve();
       });
     });

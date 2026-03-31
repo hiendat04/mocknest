@@ -5,7 +5,7 @@ import { RouteTreeProvider } from "../providers/routeTreeProvider";
 export async function startServerCommand(
   context: vscode.ExtensionContext,
   routeTreeProvider: RouteTreeProvider,
-  onStarted?: (server: MockServer) => void,
+  onStarted?: (server: MockServer, port: number) => void
 ): Promise<void> {
   const specPath = await resolveSpecPath(context);
   if (!specPath) {
@@ -41,8 +41,10 @@ export async function startServerCommand(
 
   try {
     await server.start();
-    onStarted?.(server);
-    vscode.window.showInformationMessage(`MockNest running on http://localhost:${port}`);
+    onStarted?.(server, port);
+    vscode.window.showInformationMessage(
+      `MockNest running on http://localhost:${port}`
+    );
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(`Failed to start mock server: ${message}`);

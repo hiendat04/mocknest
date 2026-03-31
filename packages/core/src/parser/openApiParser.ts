@@ -20,7 +20,7 @@ export async function parseOpenApiFile(
   for (const [path, pathItem] of Object.entries(api.paths || {})) {
     if (!pathItem) continue;
 
-    const methods = ["get", "post", "put", "delete", "patch"] as const;
+    const methods = ["get", "post", "put", "delete", "patch", "head"] as const;
 
     for (const method of methods) {
       const operation = pathItem[method] as

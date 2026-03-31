@@ -9,15 +9,36 @@ import { parseOpenApiFile } from "mocknest-core";
 let mockServer: MockServer | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log("MockNest is now active!");
-
   const routeTreeProvider = new RouteTreeProvider();
   vscode.window.registerTreeDataProvider("mocknest.routeTree", routeTreeProvider);
 
+  const statusBar = vscode.window.createStatusBarItem(
+    vscode.StatusBarAlignment.Right,
+    100
+  );
+  statusBar.command = "mocknest.startServer";
+  context.subscriptions.push(statusBar);
+
+  const updateStatusBar = (running: boolean, port?: number) => {
+    if (running && port) {
+      statusBar.text = `$(zap) MockNest: ON :${port}`;
+      statusBar.command = "mocknest.stopServer";
+      statusBar.tooltip = "Click to stop the MockNest server";
+    } else {
+      statusBar.text = "$(circle-slash) MockNest: OFF";
+      statusBar.command = "mocknest.startServer";
+      statusBar.tooltip = "Click to start the MockNest server";
+    }
+    statusBar.show();
+  };
+
+  updateStatusBar(false);
+
   context.subscriptions.push(
     vscode.commands.registerCommand("mocknest.startServer", () =>
-      startServerCommand(context, routeTreeProvider, (server) => {
+      startServerCommand(context, routeTreeProvider, (server, port) => {
         mockServer = server;
+        updateStatusBar(true, port);
       })
     ),
 
@@ -25,21 +46,13 @@ export function activate(context: vscode.ExtensionContext) {
       await stopServerCommand(mockServer);
       mockServer = null;
       routeTreeProvider.clear();
+      updateStatusBar(false);
     }),
 
     vscode.commands.registerCommand("mocknest.selectSpec", () =>
       selectSpecCommand(routeTreeProvider)
     )
   );
-
-  const statusBar = vscode.window.createStatusBarItem(
-    vscode.StatusBarAlignment.Right,
-    100
-  );
-  statusBar.text = "$(circle-slash) MockNest: OFF";
-  statusBar.command = "mocknest.startServer";
-  statusBar.show();
-  context.subscriptions.push(statusBar);
 }
 
 export async function deactivate() {
