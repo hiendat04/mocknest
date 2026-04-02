@@ -4,9 +4,15 @@
   "description": "Instantly spin up a local mock API server from your OpenAPI spec",
   "version": "0.0.1",
   "publisher": "dat-mai",
-  "engines": { "vscode": "^1.85.0" },
-  "categories": ["Other"],
-  "activationEvents": ["workspaceContains:**/openapi.{yaml,yml,json}"],
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "workspaceContains:**/openapi.{yaml,yml,json}"
+  ],
   "main": "./out/extension.js",
   "contributes": {
     "commands": [
@@ -23,6 +29,11 @@
       {
         "command": "mocknest.selectSpec",
         "title": "MockNest: Select OpenAPI Spec File"
+      },
+      {
+        "command": "mocknest.restartServer",
+        "title": "MockNest: Restart Mock Server",
+        "icon": "$(refresh)"
       }
     ],
     "viewsContainers": {

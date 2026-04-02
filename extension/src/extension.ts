@@ -4,17 +4,22 @@ import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
 import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
+import { watchOpenApiFile } from "./utils/fileWatcher";
+import restartServerCommand from "./commands/restartServer";
 
 // Keep one server instance for the extension lifecycle.
 let mockServer: MockServer | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   const routeTreeProvider = new RouteTreeProvider();
-  vscode.window.registerTreeDataProvider("mocknest.routeTree", routeTreeProvider);
+  vscode.window.registerTreeDataProvider(
+    "mocknest.routeTree",
+    routeTreeProvider,
+  );
 
   const statusBar = vscode.window.createStatusBarItem(
     vscode.StatusBarAlignment.Right,
-    100
+    100,
   );
   statusBar.command = "mocknest.startServer";
   context.subscriptions.push(statusBar);
@@ -35,23 +40,58 @@ export function activate(context: vscode.ExtensionContext) {
   updateStatusBar(false);
 
   context.subscriptions.push(
-    vscode.commands.registerCommand("mocknest.startServer", () =>
-      startServerCommand(context, routeTreeProvider, (server, port) => {
-        mockServer = server;
-        updateStatusBar(true, port);
-      })
+    vscode.commands.registerCommand(
+      "mocknest.startServer",
+      async (isRestart: boolean = false) => {
+        await startServerCommand(
+          context,
+          routeTreeProvider,
+          (server, port) => {
+            mockServer = server;
+            updateStatusBar(true, port);
+          },
+          isRestart,
+        );
+      },
     ),
 
-    vscode.commands.registerCommand("mocknest.stopServer", async () => {
-      await stopServerCommand(mockServer);
-      mockServer = null;
-      routeTreeProvider.clear();
-      updateStatusBar(false);
-    }),
+    vscode.commands.registerCommand(
+      "mocknest.stopServer",
+      async (isRestart: boolean = false) => {
+        await stopServerCommand(mockServer, isRestart);
+        mockServer = null;
+        routeTreeProvider.clear();
+        updateStatusBar(false);
+      },
+    ),
 
     vscode.commands.registerCommand("mocknest.selectSpec", () =>
-      selectSpecCommand(routeTreeProvider)
-    )
+      selectSpecCommand(routeTreeProvider),
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.restartServer",
+      async (
+        informationMessage: string = "Restarting MockNest server...",
+      ) => {
+        await restartServerCommand(
+          context,
+          routeTreeProvider,
+          mockServer,
+          informationMessage,
+        );
+      },
+    ),
+  );
+
+  // Watch for changes in the OpenAPI spec file and restart the server.
+  context.subscriptions.push(
+    watchOpenApiFile(() => {
+      void vscode.commands.executeCommand(
+        "mocknest.restartServer",
+        "OpenAPI spec changed. Restarting MockNest server...",
+      );
+    }),
   );
 }
 
@@ -69,7 +109,7 @@ async function selectSpecCommand(provider: RouteTreeProvider) {
   }
   const picked = await vscode.window.showQuickPick(
     files.map((f) => f.fsPath),
-    { placeHolder: "Select your OpenAPI spec file" }
+    { placeHolder: "Select your OpenAPI spec file" },
   );
   if (picked) {
     const routes = await parseOpenApiFile(picked);

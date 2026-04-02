@@ -5,7 +5,8 @@ import { RouteTreeProvider } from "../providers/routeTreeProvider";
 export async function startServerCommand(
   context: vscode.ExtensionContext,
   routeTreeProvider: RouteTreeProvider,
-  onStarted?: (server: MockServer, port: number) => void
+  onStarted?: (server: MockServer, port: number) => void,
+  isRestart: boolean = false,
 ): Promise<void> {
   const specPath = await resolveSpecPath(context);
   if (!specPath) {
@@ -31,27 +32,35 @@ export async function startServerCommand(
     port,
     routes,
     onRequest: (method, path, statusCode) => {
-      void vscode.commands.executeCommand("setContext", "mocknest.lastRequest", {
-        method,
-        path,
-        statusCode,
-      });
+      void vscode.commands.executeCommand(
+        "setContext",
+        "mocknest.lastRequest",
+        {
+          method,
+          path,
+          statusCode,
+        },
+      );
     },
   });
 
   try {
     await server.start();
     onStarted?.(server, port);
-    vscode.window.showInformationMessage(
-      `MockNest running on http://localhost:${port}`
-    );
+    if (!isRestart) {
+      vscode.window.showInformationMessage(
+        `MockNest running on http://localhost:${port}`,
+      );
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(`Failed to start mock server: ${message}`);
   }
 }
 
-async function resolveSpecPath(context: vscode.ExtensionContext): Promise<string | undefined> {
+async function resolveSpecPath(
+  context: vscode.ExtensionContext,
+): Promise<string | undefined> {
   const configured = context.workspaceState.get<string>("mocknest.specPath");
   if (configured) {
     return configured;
@@ -68,9 +77,12 @@ async function resolveSpecPath(context: vscode.ExtensionContext): Promise<string
     return single;
   }
 
-  const picked = await vscode.window.showQuickPick(files.map((file) => file.fsPath), {
-    placeHolder: "Select your OpenAPI spec file",
-  });
+  const picked = await vscode.window.showQuickPick(
+    files.map((file) => file.fsPath),
+    {
+      placeHolder: "Select your OpenAPI spec file",
+    },
+  );
 
   if (picked) {
     await context.workspaceState.update("mocknest.specPath", picked);
