@@ -34,6 +34,16 @@
         "command": "mocknest.restartServer",
         "title": "MockNest: Restart Mock Server",
         "icon": "$(refresh)"
+      },
+      {
+        "command": "mocknest.clearRequestLog",
+        "title": "MockNest: Clear Request Log",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "mocknest.copyRequestLogAsCurl",
+        "title": "MockNest: Copy Request as cURL",
+        "icon": "$(clippy)"
       }
     ],
     "viewsContainers": {
@@ -71,8 +81,30 @@
           "type": "boolean",
           "default": false,
           "description": "Auto-start mock server when workspace opens"
+        },
+        "mocknest.maxLogEntries": {
+          "type": "number",
+          "default": 200,
+          "minimum": 20,
+          "description": "Maximum number of request log entries to keep in memory"
         }
       }
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "mocknest.clearRequestLog",
+          "when": "view == mocknest.requestLog",
+          "group": "navigation@2"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "mocknest.copyRequestLogAsCurl",
+          "when": "view == mocknest.requestLog && viewItem == requestLogItem",
+          "group": "inline"
+        }
+      ]
     }
   },
   "scripts": {

@@ -6,15 +6,24 @@ import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
 import restartServerCommand from "./commands/restartServer";
+import {
+  RequestLogItem,
+  RequestLogProvider,
+} from "./providers/requestLogProvider";
 
 // Keep one server instance for the extension lifecycle.
 let mockServer: MockServer | null = null;
 
 export function activate(context: vscode.ExtensionContext) {
   const routeTreeProvider = new RouteTreeProvider();
+  const requestLogProvider = new RequestLogProvider();
   vscode.window.registerTreeDataProvider(
     "mocknest.routeTree",
     routeTreeProvider,
+  );
+  vscode.window.registerTreeDataProvider(
+    "mocknest.requestLog",
+    requestLogProvider,
   );
 
   const statusBar = vscode.window.createStatusBarItem(
@@ -46,9 +55,16 @@ export function activate(context: vscode.ExtensionContext) {
         await startServerCommand(
           context,
           routeTreeProvider,
-          (server, port) => {
+          (server, port, requestInfo) => {
             mockServer = server;
             updateStatusBar(true, port);
+            if (requestInfo) {
+              requestLogProvider.append(
+                requestInfo.method,
+                requestInfo.path,
+                requestInfo.statusCode,
+              );
+            }
           },
           isRestart,
         );
@@ -69,17 +85,47 @@ export function activate(context: vscode.ExtensionContext) {
       selectSpecCommand(routeTreeProvider),
     ),
 
+    vscode.commands.registerCommand("mocknest.clearRequestLog", () => {
+      requestLogProvider.clear();
+      vscode.window.showInformationMessage("MockNest request log cleared.");
+    }),
+
+    vscode.commands.registerCommand(
+      "mocknest.openRequestLogEntry",
+      async (item: RequestLogItem) => {
+        const doc = await vscode.workspace.openTextDocument({
+          language: "json",
+          content: JSON.stringify(item.entry, null, 2),
+        });
+        await vscode.window.showTextDocument(doc, { preview: true });
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.copyRequestLogAsCurl",
+      async (item?: RequestLogItem) => {
+        const entry = item?.entry ?? requestLogProvider.getLatestEntry();
+        if (!entry) {
+          vscode.window.showInformationMessage(
+            "No request log entries available.",
+          );
+          return;
+        }
+
+        const port = vscode.workspace
+          .getConfiguration("mocknest")
+          .get<number>("port", 3001);
+        const command = `curl -i -X ${entry.method} http://localhost:${port}${entry.path}`;
+
+        await vscode.env.clipboard.writeText(command);
+        vscode.window.showInformationMessage("Copied cURL command.");
+      },
+    ),
+
     vscode.commands.registerCommand(
       "mocknest.restartServer",
-      async (
-        informationMessage: string = "Restarting MockNest server...",
-      ) => {
-        await restartServerCommand(
-          context,
-          routeTreeProvider,
-          mockServer,
-          informationMessage,
-        );
+      async (informationMessage: string = "Restarting MockNest server...") => {
+        await restartServerCommand(mockServer, informationMessage);
       },
     ),
   );

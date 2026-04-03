@@ -5,7 +5,11 @@ import { RouteTreeProvider } from "../providers/routeTreeProvider";
 export async function startServerCommand(
   context: vscode.ExtensionContext,
   routeTreeProvider: RouteTreeProvider,
-  onStarted?: (server: MockServer, port: number) => void,
+  onStarted?: (
+    server: MockServer,
+    port: number,
+    requestInfo?: { method: string; path: string; statusCode: number },
+  ) => void,
   isRestart: boolean = false,
 ): Promise<void> {
   const specPath = await resolveSpecPath(context);
@@ -32,6 +36,7 @@ export async function startServerCommand(
     port,
     routes,
     onRequest: (method, path, statusCode) => {
+      onStarted?.(server, port, { method, path, statusCode });
       void vscode.commands.executeCommand(
         "setContext",
         "mocknest.lastRequest",

@@ -1,10 +1,7 @@
 import * as vscode from "vscode";
 import { MockServer } from "mocknest-core";
-import { RouteTreeProvider } from "../providers/routeTreeProvider";
 
 export default async function restartServerCommand(
-  context: vscode.ExtensionContext,
-  routeTreeProvider: RouteTreeProvider,
   mockServer: MockServer | null,
   informationMessage: string = "Restarting MockNest server...",
 ): Promise<void> {
