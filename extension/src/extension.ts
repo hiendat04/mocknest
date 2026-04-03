@@ -7,16 +7,23 @@ import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
 import restartServerCommand from "./commands/restartServer";
 import {
+  RequestLogEntry,
   RequestLogItem,
   RequestLogProvider,
 } from "./providers/requestLogProvider";
 
 // Keep one server instance for the extension lifecycle.
 let mockServer: MockServer | null = null;
+const REQUEST_LOG_STATE_KEY = "mocknest.requestLogEntries";
 
 export function activate(context: vscode.ExtensionContext) {
   const routeTreeProvider = new RouteTreeProvider();
   const requestLogProvider = new RequestLogProvider();
+  const persistedEntries = context.workspaceState.get<RequestLogEntry[]>(
+    REQUEST_LOG_STATE_KEY,
+    [],
+  );
+  requestLogProvider.restore(persistedEntries);
   vscode.window.registerTreeDataProvider(
     "mocknest.routeTree",
     routeTreeProvider,
@@ -64,6 +71,7 @@ export function activate(context: vscode.ExtensionContext) {
                 requestInfo.path,
                 requestInfo.statusCode,
               );
+              void persistRequestLog(context, requestLogProvider);
             }
           },
           isRestart,
@@ -87,6 +95,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("mocknest.clearRequestLog", () => {
       requestLogProvider.clear();
+      void persistRequestLog(context, requestLogProvider);
       vscode.window.showInformationMessage("MockNest request log cleared.");
     }),
 
@@ -145,6 +154,16 @@ export async function deactivate() {
   if (mockServer?.isRunning()) {
     await mockServer.stop();
   }
+}
+
+async function persistRequestLog(
+  context: vscode.ExtensionContext,
+  requestLogProvider: RequestLogProvider,
+): Promise<void> {
+  await context.workspaceState.update(
+    REQUEST_LOG_STATE_KEY,
+    requestLogProvider.getEntries(),
+  );
 }
 
 async function selectSpecCommand(provider: RouteTreeProvider) {

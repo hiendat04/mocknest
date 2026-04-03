@@ -55,22 +55,62 @@ export class RequestLogProvider
     };
 
     this.entries.unshift(entry);
-
-    const maxEntries = vscode.workspace
-      .getConfiguration("mocknest")
-      .get<number>("maxLogEntries", 200);
-    this.entries = this.entries.slice(0, maxEntries);
+    this.pruneByMaxEntries();
     this.onDidChangeTreeDataEmitter.fire();
   }
 
   clear(): void {
     this.entries = [];
+    this.nextId = 1;
     this.onDidChangeTreeDataEmitter.fire();
   }
 
   getLatestEntry(): RequestLogEntry | undefined {
     return this.entries[0];
   }
+
+  getEntries(): RequestLogEntry[] {
+    return [...this.entries];
+  }
+
+  restore(entries: RequestLogEntry[]): void {
+    this.entries = entries
+      .filter(isValidEntry)
+      .sort((a, b) =>
+        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime(),
+      );
+
+    this.pruneByMaxEntries();
+
+    const maxId = this.entries.reduce((currentMax, entry) => {
+      const idValue = Number(entry.id);
+      return Number.isFinite(idValue) ? Math.max(currentMax, idValue) : currentMax;
+    }, 0);
+    this.nextId = maxId + 1;
+
+    this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  private pruneByMaxEntries(): void {
+    const maxEntries = vscode.workspace
+      .getConfiguration("mocknest")
+      .get<number>("maxLogEntries", 200);
+    this.entries = this.entries.slice(0, maxEntries);
+  }
+}
+
+function isValidEntry(entry: RequestLogEntry): boolean {
+  if (!entry || typeof entry !== "object") {
+    return false;
+  }
+
+  return (
+    typeof entry.id === "string" &&
+    typeof entry.method === "string" &&
+    typeof entry.path === "string" &&
+    typeof entry.statusCode === "number" &&
+    typeof entry.timestamp === "string"
+  );
 }
 
 function formatTime(timestamp: string): string {
