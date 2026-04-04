@@ -32,9 +32,14 @@ export async function startServerCommand(
 
   routeTreeProvider.refresh(routes);
 
+  const delay = config.get<number>("delay", 20);
+  const errorRate = config.get<number>("errorRate", 0);
+
   const server = new MockServer({
     port,
     routes,
+    delay,
+    errorRate,
     onRequest: (method, path, statusCode) => {
       onStarted?.(server, port, { method, path, statusCode });
       void vscode.commands.executeCommand(

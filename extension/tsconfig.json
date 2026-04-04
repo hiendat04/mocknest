@@ -4,6 +4,7 @@
     "rootDir": "src",
     "outDir": "out",
     "moduleResolution": "node",
+    "ignoreDeprecations": "5.0",
     "types": ["node", "vscode"]
   },
   "include": ["src"]

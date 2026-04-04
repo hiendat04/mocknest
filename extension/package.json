@@ -87,6 +87,19 @@
           "default": 200,
           "minimum": 20,
           "description": "Maximum number of request log entries to keep in memory"
+        },
+        "mocknest.delay": {
+          "type": "number",
+          "default": 20,
+          "minimum": 0,
+          "description": "Simulated global network delay (in milliseconds) applied to mock responses."
+        },
+        "mocknest.errorRate": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Probability (0 to 1) of a request randomly failing with a 500 error to simulate network chaos."
         }
       }
     },

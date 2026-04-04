@@ -8,6 +8,8 @@ export interface MockServerOptions {
   port: number;
   routes: ParsedRoute[];
   onRequest?: (method: string, path: string, statusCode: number) => void;
+  delay?: number;
+  errorRate?: number;
 }
 
 export class MockServer {
@@ -31,13 +33,26 @@ export class MockServer {
           ? generateFakeData(route.responseSchema)
           : {};
 
+        // Chaos mode (Error Rate)
+        if (this.options.errorRate && this.options.errorRate > 0) {
+          const random = Math.random();
+          if (random < this.options.errorRate) {
+            this.options.onRequest?.(route.method, req.path, 500);
+            setTimeout(() => {
+              res.setHeader("Content-Type", "application/json");
+              res.status(500).send(JSON.stringify({ error: "Internal Server Error (Simulated)" }, null, 2));
+            }, this.options.delay ?? 20);
+            return;
+          }
+        }
+
         this.options.onRequest?.(route.method, req.path, route.statusCode);
 
         // Artificial delay to simulate real network
         setTimeout(() => {
           res.setHeader("Content-Type", "application/json");
           res.status(route.statusCode).send(JSON.stringify(fakeBody, null, 2));
-        }, 20);
+        }, this.options.delay ?? 20);
       });
     }
 

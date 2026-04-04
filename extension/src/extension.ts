@@ -148,6 +148,22 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }),
   );
+  
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (
+        e.affectsConfiguration("mocknest.delay") ||
+        e.affectsConfiguration("mocknest.errorRate")
+      ) {
+        if (mockServer?.isRunning()) {
+          void vscode.commands.executeCommand(
+            "mocknest.restartServer",
+            "MockNest configuration changed. Restarting server...",
+          );
+        }
+      }
+    }),
+  );
 }
 
 export async function deactivate() {
