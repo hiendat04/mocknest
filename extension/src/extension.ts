@@ -1,11 +1,12 @@
 import * as vscode from "vscode";
-import { RouteTreeProvider } from "./providers/routeTreeProvider";
+import { RouteItem, RouteTreeProvider } from "./providers/routeTreeProvider";
 import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
 import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
 import restartServerCommand from "./commands/restartServer";
+import { ApiTesterPanel } from "./commands/openApiTester";
 import {
   RequestLogEntry,
   RequestLogItem,
@@ -72,6 +73,8 @@ export function activate(context: vscode.ExtensionContext) {
                 requestInfo.statusCode,
               );
               void persistRequestLog(context, requestLogProvider);
+            } else {
+              ApiTesterPanel.syncRoutes(routeTreeProvider);
             }
           },
           isRestart,
@@ -91,6 +94,22 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("mocknest.selectSpec", () =>
       selectSpecCommand(routeTreeProvider),
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.openApiTester",
+      (item?: RouteItem) => {
+        ApiTesterPanel.open(
+          context,
+          routeTreeProvider,
+          item
+            ? {
+                method: item.route.method,
+                path: item.route.path,
+              }
+            : undefined,
+        );
+      },
     ),
 
     vscode.commands.registerCommand("mocknest.clearRequestLog", () => {
@@ -195,5 +214,6 @@ async function selectSpecCommand(provider: RouteTreeProvider) {
   if (picked) {
     const routes = await parseOpenApiFile(picked);
     provider.refresh(routes);
+    ApiTesterPanel.syncRoutes(provider);
   }
 }

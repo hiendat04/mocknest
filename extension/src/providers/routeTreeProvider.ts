@@ -9,6 +9,7 @@ export class RouteItem extends vscode.TreeItem {
     const color = methodColor(route.method);
     this.description = route.summary || "";
     this.tooltip = `${route.method} ${route.path} → ${route.statusCode}`;
+    this.contextValue = "routeItem";
 
     this.iconPath = new vscode.ThemeIcon("circle-filled",
       new vscode.ThemeColor(color)
@@ -38,6 +39,10 @@ export class RouteTreeProvider implements vscode.TreeDataProvider<RouteItem> {
   clear() {
     this.routes = [];
     this._onDidChangeTreeData.fire();
+  }
+
+  getRoutes(): ParsedRoute[] {
+    return [...this.routes];
   }
 }
 

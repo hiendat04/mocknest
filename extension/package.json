@@ -31,6 +31,11 @@
         "title": "MockNest: Select OpenAPI Spec File"
       },
       {
+        "command": "mocknest.openApiTester",
+        "title": "MockNest: Open API Tester",
+        "icon": "$(beaker)"
+      },
+      {
         "command": "mocknest.restartServer",
         "title": "MockNest: Restart Mock Server",
         "icon": "$(refresh)"
@@ -106,12 +111,22 @@
     "menus": {
       "view/title": [
         {
+          "command": "mocknest.openApiTester",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@1"
+        },
+        {
           "command": "mocknest.clearRequestLog",
           "when": "view == mocknest.requestLog",
           "group": "navigation@2"
         }
       ],
       "view/item/context": [
+        {
+          "command": "mocknest.openApiTester",
+          "when": "view == mocknest.routeTree && viewItem == routeItem",
+          "group": "inline"
+        },
         {
           "command": "mocknest.copyRequestLogAsCurl",
           "when": "view == mocknest.requestLog && viewItem == requestLogItem",
