@@ -20,6 +20,7 @@ interface RouteOption {
   summary?: string;
   description?: string;
   expectedStatus: number;
+  requestRequired?: boolean;
   responseDescription?: string;
   parameters: RouteParameterInfo[];
   requestExample?: unknown;
@@ -370,6 +371,18 @@ export class ApiTesterPanel {
       background: #f851491f;
     }
 
+    .contract-pass {
+      color: #3fb950;
+      border-color: #3fb95066;
+      background: #3fb9501f;
+    }
+
+    .contract-warn {
+      color: #f0883e;
+      border-color: #f0883e66;
+      background: #f0883e1f;
+    }
+
     .mono {
       font-family: var(--vscode-editor-font-family, monospace);
       white-space: pre-wrap;
@@ -469,7 +482,7 @@ export class ApiTesterPanel {
 
       <div class="row-2" style="margin-top: 10px;">
         <div>
-          <div class="label">Sample Request Body</div>
+          <div class="label" id="requestExampleLabel">Sample Request Body</div>
           <pre id="requestExample" class="mono">(No request body schema)</pre>
         </div>
         <div>
@@ -477,6 +490,9 @@ export class ApiTesterPanel {
           <pre id="responseExample" class="mono">(No JSON response schema)</pre>
         </div>
       </div>
+
+      <div class="label" style="margin-top: 10px;">Contract Check</div>
+      <div id="contractCheck" class="mono">Select a route and send a request to validate contract behavior.</div>
     </section>
 
     <section class="card">
@@ -510,8 +526,10 @@ export class ApiTesterPanel {
     const endpointResponseDescription = document.getElementById("endpointResponseDescription");
     const pathParamList = document.getElementById("pathParamList");
     const queryParamList = document.getElementById("queryParamList");
+    const requestExampleLabel = document.getElementById("requestExampleLabel");
     const requestExample = document.getElementById("requestExample");
     const responseExample = document.getElementById("responseExample");
+    const contractCheck = document.getElementById("contractCheck");
 
     const statusBadge = document.getElementById("statusBadge");
     const meta = document.getElementById("meta");
@@ -542,6 +560,17 @@ export class ApiTesterPanel {
         headers: headersInput.value,
         body: bodyInput.value,
       };
+
+      const selectedRoute = getSelectedRoute();
+      const validationMessage = validateBeforeSend(selectedRoute, payload);
+      if (validationMessage) {
+        statusBadge.className = "status-badge status-error";
+        statusBadge.textContent = "Blocked";
+        meta.textContent = "";
+        contractCheck.className = "mono contract-warn";
+        contractCheck.textContent = validationMessage;
+        return;
+      }
 
       statusBadge.className = "status-badge";
       statusBadge.textContent = "Sending...";
@@ -627,6 +656,8 @@ export class ApiTesterPanel {
         } else {
           responseBody.textContent = "(empty)";
         }
+
+        updateContractCheck(getSelectedRoute(), Number(payload.status));
         return;
       }
 
@@ -667,8 +698,11 @@ export class ApiTesterPanel {
         endpointResponseDescription.textContent = "-";
         pathParamList.innerHTML = '<span class="muted">None</span>';
         queryParamList.innerHTML = '<span class="muted">None</span>';
+        requestExampleLabel.textContent = "Sample Request Body";
         requestExample.textContent = "(No request body schema)";
         responseExample.textContent = "(No JSON response schema)";
+        contractCheck.className = "mono";
+        contractCheck.textContent = "Select a route and send a request to validate contract behavior.";
         return;
       }
 
@@ -678,6 +712,12 @@ export class ApiTesterPanel {
 
       renderParameterList(pathParamList, route.parameters, "path");
       renderParameterList(queryParamList, route.parameters, "query");
+
+      if (route.requestRequired) {
+        requestExampleLabel.textContent = "Sample Request Body (required)";
+      } else {
+        requestExampleLabel.textContent = "Sample Request Body";
+      }
 
       if (route.requestExample) {
         requestExample.innerHTML = syntaxHighlight(JSON.stringify(route.requestExample, null, 2));
@@ -690,6 +730,71 @@ export class ApiTesterPanel {
       } else {
         responseExample.textContent = "(No JSON response schema)";
       }
+
+      contractCheck.className = "mono";
+      contractCheck.textContent = "Expected status from OpenAPI: " + String(route.expectedStatus);
+    }
+
+    function getSelectedRoute() {
+      const index = Number(routeSelect.value);
+      if (Number.isNaN(index)) {
+        return undefined;
+      }
+      return routeOptions[index];
+    }
+
+    function validateBeforeSend(route, payload) {
+      if (!route) {
+        return undefined;
+      }
+
+      const method = String(payload.method || "").toUpperCase();
+      const body = String(payload.body || "").trim();
+      const allowsBody = method !== "GET" && method !== "HEAD";
+
+      if (route.requestRequired && allowsBody && body.length === 0) {
+        return "OpenAPI marks this request body as required. Provide a payload before sending.";
+      }
+
+      const unresolvedPathParam = /:[a-zA-Z0-9_]+/.test(String(payload.path || ""));
+      if (unresolvedPathParam) {
+        return "Path contains unresolved parameter tokens (for example :id). Replace them with actual values.";
+      }
+
+      const requiredQueryParams = Array.isArray(route.parameters)
+        ? route.parameters.filter((parameter) => parameter.in === "query" && parameter.required)
+        : [];
+
+      if (requiredQueryParams.length > 0) {
+        const queryString = String(payload.path || "").split("?")[1] || "";
+        const searchParams = new URLSearchParams(queryString);
+        const missing = requiredQueryParams
+          .map((parameter) => parameter.name)
+          .filter((name) => !searchParams.has(name));
+
+        if (missing.length > 0) {
+          return "Missing required query parameter(s): " + missing.join(", ");
+        }
+      }
+
+      return undefined;
+    }
+
+    function updateContractCheck(route, actualStatus) {
+      if (!route || !Number.isFinite(actualStatus)) {
+        contractCheck.className = "mono";
+        contractCheck.textContent = "No contract route selected for validation.";
+        return;
+      }
+
+      if (Number(route.expectedStatus) === Number(actualStatus)) {
+        contractCheck.className = "mono contract-pass";
+        contractCheck.textContent = "Contract PASS: expected " + String(route.expectedStatus) + ", got " + String(actualStatus) + ".";
+        return;
+      }
+
+      contractCheck.className = "mono contract-warn";
+      contractCheck.textContent = "Contract WARN: expected " + String(route.expectedStatus) + ", got " + String(actualStatus) + ".";
     }
 
     function renderParameterList(target, allParams, location) {
@@ -755,6 +860,7 @@ function createRouteOption(route: ParsedRoute): RouteOption {
     summary: route.summary,
     description: route.description,
     expectedStatus: route.statusCode,
+    requestRequired: route.requestRequired,
     responseDescription: route.responseDescription,
     parameters: (route.parameters || []).map((parameter) => ({
       name: parameter.name,
