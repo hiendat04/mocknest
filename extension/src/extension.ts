@@ -12,6 +12,14 @@ import {
   RequestLogItem,
   RequestLogProvider,
 } from "./providers/requestLogProvider";
+import {
+  CHAOS_DELAY_MS,
+  CHAOS_ERROR_RATE,
+  ChaosControlProvider,
+  DEFAULT_DELAY_MS,
+  DEFAULT_ERROR_RATE,
+  parseFailureRateInput,
+} from "./providers/chaosControlProvider";
 
 // Keep one server instance for the extension lifecycle.
 let mockServer: MockServer | null = null;
@@ -20,6 +28,7 @@ const REQUEST_LOG_STATE_KEY = "mocknest.requestLogEntries";
 export function activate(context: vscode.ExtensionContext) {
   const routeTreeProvider = new RouteTreeProvider();
   const requestLogProvider = new RequestLogProvider();
+  const chaosControlProvider = new ChaosControlProvider();
   const persistedEntries = context.workspaceState.get<RequestLogEntry[]>(
     REQUEST_LOG_STATE_KEY,
     [],
@@ -32,6 +41,10 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.window.registerTreeDataProvider(
     "mocknest.requestLog",
     requestLogProvider,
+  );
+  vscode.window.registerTreeDataProvider(
+    "mocknest.chaosControls",
+    chaosControlProvider,
   );
 
   const statusBar = vscode.window.createStatusBarItem(
@@ -118,6 +131,97 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage("MockNest request log cleared.");
     }),
 
+    vscode.commands.registerCommand("mocknest.toggleChaosMode", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const delay = config.get<number>("delay", DEFAULT_DELAY_MS);
+      const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
+      const isChaosEnabled =
+        delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE;
+
+      if (isChaosEnabled) {
+        await config.update("delay", DEFAULT_DELAY_MS, vscode.ConfigurationTarget.Workspace);
+        await config.update("errorRate", DEFAULT_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
+        vscode.window.showInformationMessage("Chaos mode disabled.");
+      } else {
+        await config.update("delay", CHAOS_DELAY_MS, vscode.ConfigurationTarget.Workspace);
+        await config.update("errorRate", CHAOS_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
+        vscode.window.showInformationMessage("Chaos mode enabled.");
+      }
+
+      chaosControlProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand("mocknest.setChaosLatency", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<number>("delay", DEFAULT_DELAY_MS);
+
+      const input = await vscode.window.showInputBox({
+        title: "Set Global Latency",
+        prompt: "Latency in milliseconds",
+        value: String(current),
+        validateInput: (value) => {
+          const parsed = Number(value);
+          if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+            return "Enter a whole number >= 0";
+          }
+          return undefined;
+        },
+      });
+
+      if (!input) {
+        return;
+      }
+
+      await config.update(
+        "delay",
+        Number(input),
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand("mocknest.setChaosErrorRate", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
+
+      const input = await vscode.window.showInputBox({
+        title: "Set Failure Rate",
+        prompt: "Enter decimal (0-1) or percentage (0-100)",
+        value: String(current),
+        validateInput: (value) => {
+          const parsed = parseFailureRateInput(value);
+          if (parsed === undefined) {
+            return "Enter value in range 0-1 or 0-100%";
+          }
+          return undefined;
+        },
+      });
+
+      if (!input) {
+        return;
+      }
+
+      const parsed = parseFailureRateInput(input);
+      if (parsed === undefined) {
+        return;
+      }
+
+      await config.update(
+        "errorRate",
+        parsed,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand("mocknest.resetChaosSettings", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      await config.update("delay", DEFAULT_DELAY_MS, vscode.ConfigurationTarget.Workspace);
+      await config.update("errorRate", DEFAULT_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
+      chaosControlProvider.refresh();
+      vscode.window.showInformationMessage("Chaos settings reset to defaults.");
+    }),
+
     vscode.commands.registerCommand(
       "mocknest.openRequestLogEntry",
       async (item: RequestLogItem) => {
@@ -174,6 +278,7 @@ export function activate(context: vscode.ExtensionContext) {
         e.affectsConfiguration("mocknest.delay") ||
         e.affectsConfiguration("mocknest.errorRate")
       ) {
+        chaosControlProvider.refresh();
         if (mockServer?.isRunning()) {
           void vscode.commands.executeCommand(
             "mocknest.restartServer",

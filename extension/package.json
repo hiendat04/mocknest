@@ -49,6 +49,26 @@
         "command": "mocknest.copyRequestLogAsCurl",
         "title": "MockNest: Copy Request as cURL",
         "icon": "$(clippy)"
+      },
+      {
+        "command": "mocknest.toggleChaosMode",
+        "title": "MockNest: Toggle Chaos Mode",
+        "icon": "$(flame)"
+      },
+      {
+        "command": "mocknest.setChaosLatency",
+        "title": "MockNest: Set Chaos Latency",
+        "icon": "$(clock)"
+      },
+      {
+        "command": "mocknest.setChaosErrorRate",
+        "title": "MockNest: Set Chaos Failure Rate",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "mocknest.resetChaosSettings",
+        "title": "MockNest: Reset Chaos Settings",
+        "icon": "$(discard)"
       }
     ],
     "viewsContainers": {
@@ -71,6 +91,11 @@
           "id": "mocknest.requestLog",
           "name": "Request Log",
           "icon": "$(history)"
+        },
+        {
+          "id": "mocknest.chaosControls",
+          "name": "Chaos Controls",
+          "icon": "$(flame)"
         }
       ]
     },
@@ -119,6 +144,16 @@
           "command": "mocknest.clearRequestLog",
           "when": "view == mocknest.requestLog",
           "group": "navigation@2"
+        },
+        {
+          "command": "mocknest.toggleChaosMode",
+          "when": "view == mocknest.chaosControls",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mocknest.resetChaosSettings",
+          "when": "view == mocknest.chaosControls",
+          "group": "navigation@2"
         }
       ],
       "view/item/context": [
@@ -130,6 +165,26 @@
         {
           "command": "mocknest.copyRequestLogAsCurl",
           "when": "view == mocknest.requestLog && viewItem == requestLogItem",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.toggleChaosMode",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosToggle",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.setChaosLatency",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosLatency",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.setChaosErrorRate",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosErrorRate",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.resetChaosSettings",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosReset",
           "group": "inline"
         }
       ]
