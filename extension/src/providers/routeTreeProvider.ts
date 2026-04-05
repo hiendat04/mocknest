@@ -10,6 +10,11 @@ export class RouteItem extends vscode.TreeItem {
     this.description = route.summary || "";
     this.tooltip = `${route.method} ${route.path} → ${route.statusCode}`;
     this.contextValue = "routeItem";
+    this.command = {
+      command: "mocknest.openApiTester",
+      title: "Open in API Tester",
+      arguments: [this],
+    };
 
     this.iconPath = new vscode.ThemeIcon("circle-filled",
       new vscode.ThemeColor(color)
