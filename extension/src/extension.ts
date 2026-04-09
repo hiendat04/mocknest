@@ -276,7 +276,8 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("mocknest.delay") ||
-        e.affectsConfiguration("mocknest.errorRate")
+        e.affectsConfiguration("mocknest.errorRate") ||
+        e.affectsConfiguration("mocknest.strictValidation")
       ) {
         chaosControlProvider.refresh();
         if (mockServer?.isRunning()) {

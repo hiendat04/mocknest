@@ -130,6 +130,11 @@
           "minimum": 0,
           "maximum": 1,
           "description": "Probability (0 to 1) of a request randomly failing with a 500 error to simulate network chaos."
+        },
+        "mocknest.strictValidation": {
+          "type": "boolean",
+          "default": false,
+          "description": "Validate incoming request path/query/body against the OpenAPI contract and return 400 with details when invalid."
         }
       }
     },

@@ -34,12 +34,14 @@ export async function startServerCommand(
 
   const delay = config.get<number>("delay", 20);
   const errorRate = config.get<number>("errorRate", 0);
+  const strictValidation = config.get<boolean>("strictValidation", false);
 
   const server = new MockServer({
     port,
     routes,
     delay,
     errorRate,
+    strictValidation,
     onRequest: (method, path, statusCode) => {
       onStarted?.(server, port, { method, path, statusCode });
       void vscode.commands.executeCommand(
