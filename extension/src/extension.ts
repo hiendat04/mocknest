@@ -131,6 +131,15 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage("MockNest request log cleared.");
     }),
 
+    vscode.commands.registerCommand("mocknest.copyBaseUrl", async () => {
+      const port = vscode.workspace
+        .getConfiguration("mocknest")
+        .get<number>("port", 3001);
+      const baseUrl = `http://localhost:${port}`;
+      await vscode.env.clipboard.writeText(baseUrl);
+      vscode.window.showInformationMessage(`Copied base URL: ${baseUrl}`);
+    }),
+
     vscode.commands.registerCommand("mocknest.toggleChaosMode", async () => {
       const config = vscode.workspace.getConfiguration("mocknest");
       const delay = config.get<number>("delay", DEFAULT_DELAY_MS);
@@ -220,6 +229,21 @@ export function activate(context: vscode.ExtensionContext) {
       await config.update("errorRate", DEFAULT_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
       chaosControlProvider.refresh();
       vscode.window.showInformationMessage("Chaos settings reset to defaults.");
+    }),
+
+    vscode.commands.registerCommand("mocknest.toggleStrictValidation", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<boolean>("strictValidation", false);
+      const next = !current;
+      await config.update(
+        "strictValidation",
+        next,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+      vscode.window.showInformationMessage(
+        `Contract validation ${next ? "enabled" : "disabled"}.`,
+      );
     }),
 
     vscode.commands.registerCommand(

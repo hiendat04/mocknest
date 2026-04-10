@@ -69,6 +69,16 @@
         "command": "mocknest.resetChaosSettings",
         "title": "MockNest: Reset Chaos Settings",
         "icon": "$(discard)"
+      },
+      {
+        "command": "mocknest.toggleStrictValidation",
+        "title": "MockNest: Toggle Contract Validation",
+        "icon": "$(shield)"
+      },
+      {
+        "command": "mocknest.copyBaseUrl",
+        "title": "MockNest: Copy Base URL",
+        "icon": "$(link-external)"
       }
     ],
     "viewsContainers": {
@@ -151,14 +161,24 @@
           "group": "navigation@2"
         },
         {
+          "command": "mocknest.copyBaseUrl",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@2"
+        },
+        {
           "command": "mocknest.toggleChaosMode",
           "when": "view == mocknest.chaosControls",
           "group": "navigation@1"
         },
         {
-          "command": "mocknest.resetChaosSettings",
+          "command": "mocknest.toggleStrictValidation",
           "when": "view == mocknest.chaosControls",
           "group": "navigation@2"
+        },
+        {
+          "command": "mocknest.resetChaosSettings",
+          "when": "view == mocknest.chaosControls",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [
@@ -185,6 +205,11 @@
         {
           "command": "mocknest.setChaosErrorRate",
           "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosErrorRate",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.toggleStrictValidation",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.strictValidation",
           "group": "inline"
         },
         {

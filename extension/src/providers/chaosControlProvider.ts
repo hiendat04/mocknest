@@ -40,6 +40,7 @@ export class ChaosControlProvider
     const config = vscode.workspace.getConfiguration("mocknest");
     const delay = config.get<number>("delay", DEFAULT_DELAY_MS);
     const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
+    const strictValidation = config.get<boolean>("strictValidation", false);
     const isChaosMode = delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE;
 
     return [
@@ -66,6 +67,14 @@ export class ChaosControlProvider
         "mocknest.chaosErrorRate",
         "Set percentage of simulated 500 responses",
         "pulse",
+      ),
+      new ChaosControlItem(
+        "Contract Validation",
+        strictValidation ? "ON" : "OFF",
+        "mocknest.toggleStrictValidation",
+        "mocknest.strictValidation",
+        "Toggle strict request validation against your OpenAPI contract",
+        strictValidation ? "shield" : "circle-slash",
       ),
       new ChaosControlItem(
         "Reset Chaos",
