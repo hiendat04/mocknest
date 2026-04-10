@@ -140,6 +140,45 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage(`Copied base URL: ${baseUrl}`);
     }),
 
+    vscode.commands.registerCommand("mocknest.exportRuntimeConfig", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const runtimeConfig = {
+        port: config.get<number>("port", 3001),
+        autoStart: config.get<boolean>("autoStart", false),
+        delay: config.get<number>("delay", DEFAULT_DELAY_MS),
+        errorRate: config.get<number>("errorRate", DEFAULT_ERROR_RATE),
+        strictValidation: config.get<boolean>("strictValidation", false),
+        specPath: context.workspaceState.get<string>("mocknest.specPath"),
+        serverRunning: mockServer?.isRunning() ?? false,
+      };
+
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri;
+      const defaultUri = workspaceRoot
+        ? vscode.Uri.joinPath(workspaceRoot, "mocknest-runtime-config.json")
+        : undefined;
+
+      const saveUri = await vscode.window.showSaveDialog({
+        defaultUri,
+        saveLabel: "Export Runtime Config",
+        filters: {
+          "JSON Files": ["json"],
+        },
+      });
+
+      if (!saveUri) {
+        return;
+      }
+
+      await vscode.workspace.fs.writeFile(
+        saveUri,
+        Buffer.from(JSON.stringify(runtimeConfig, null, 2), "utf8"),
+      );
+
+      vscode.window.showInformationMessage(
+        `Exported runtime config to ${saveUri.fsPath}`,
+      );
+    }),
+
     vscode.commands.registerCommand("mocknest.toggleChaosMode", async () => {
       const config = vscode.workspace.getConfiguration("mocknest");
       const delay = config.get<number>("delay", DEFAULT_DELAY_MS);

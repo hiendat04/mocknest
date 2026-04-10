@@ -79,6 +79,11 @@
         "command": "mocknest.copyBaseUrl",
         "title": "MockNest: Copy Base URL",
         "icon": "$(link-external)"
+      },
+      {
+        "command": "mocknest.exportRuntimeConfig",
+        "title": "MockNest: Export Runtime Config JSON",
+        "icon": "$(save-as)"
       }
     ],
     "viewsContainers": {
@@ -164,6 +169,11 @@
           "command": "mocknest.copyBaseUrl",
           "when": "view == mocknest.routeTree",
           "group": "navigation@2"
+        },
+        {
+          "command": "mocknest.exportRuntimeConfig",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@3"
         },
         {
           "command": "mocknest.toggleChaosMode",
