@@ -372,10 +372,19 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Watch for changes in the OpenAPI spec file and restart the server.
   context.subscriptions.push(
-    watchOpenApiFile(() => {
+    watchOpenApiFile((uri) => {
+      const selectedSpec = context.workspaceState.get<string>(SPEC_PATH_STATE_KEY);
+      if (!selectedSpec || !mockServer?.isRunning()) {
+        return;
+      }
+
+      if (!isSameFilePath(uri.fsPath, selectedSpec)) {
+        return;
+      }
+
       void vscode.commands.executeCommand(
         "mocknest.restartServer",
-        "OpenAPI spec changed. Restarting MockNest server...",
+        "Selected OpenAPI spec changed. Restarting MockNest server...",
       );
     }),
   );
@@ -447,4 +456,9 @@ async function selectSpecCommand(
     vscode.window.showErrorMessage(`Failed to parse OpenAPI spec: ${message}`);
     return false;
   }
+}
+
+function isSameFilePath(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replace(/\\/g, "/").toLowerCase();
+  return normalize(left) === normalize(right);
 }
