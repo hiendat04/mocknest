@@ -31,6 +31,11 @@
         "title": "MockNest: Select OpenAPI Spec File"
       },
       {
+        "command": "mocknest.clearSelectedSpec",
+        "title": "MockNest: Clear Selected OpenAPI Spec",
+        "icon": "$(trash)"
+      },
+      {
         "command": "mocknest.openApiTester",
         "title": "MockNest: Open API Tester",
         "icon": "$(beaker)"
@@ -174,6 +179,11 @@
           "command": "mocknest.exportRuntimeConfig",
           "when": "view == mocknest.routeTree",
           "group": "navigation@3"
+        },
+        {
+          "command": "mocknest.clearSelectedSpec",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@4"
         },
         {
           "command": "mocknest.toggleChaosMode",

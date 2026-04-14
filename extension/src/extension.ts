@@ -110,6 +110,21 @@ export function activate(context: vscode.ExtensionContext) {
       selectSpecCommand(context, routeTreeProvider),
     ),
 
+    vscode.commands.registerCommand("mocknest.clearSelectedSpec", async () => {
+      const current = context.workspaceState.get<string>(SPEC_PATH_STATE_KEY);
+      if (!current) {
+        vscode.window.showInformationMessage("No selected OpenAPI spec to clear.");
+        return;
+      }
+
+      await context.workspaceState.update(SPEC_PATH_STATE_KEY, undefined);
+      routeTreeProvider.clear();
+      ApiTesterPanel.syncRoutes(routeTreeProvider);
+      vscode.window.showInformationMessage(
+        "Cleared selected OpenAPI spec. Select a spec again before next start.",
+      );
+    }),
+
     vscode.commands.registerCommand(
       "mocknest.openApiTester",
       (item?: RouteItem) => {
@@ -149,7 +164,7 @@ export function activate(context: vscode.ExtensionContext) {
         delay: config.get<number>("delay", DEFAULT_DELAY_MS),
         errorRate: config.get<number>("errorRate", DEFAULT_ERROR_RATE),
         strictValidation: config.get<boolean>("strictValidation", false),
-        specPath: context.workspaceState.get<string>("mocknest.specPath"),
+        specPath: context.workspaceState.get<string>(SPEC_PATH_STATE_KEY),
         serverRunning: mockServer?.isRunning() ?? false,
       };
 
