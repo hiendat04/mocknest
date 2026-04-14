@@ -125,6 +125,29 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }),
 
+    vscode.commands.registerCommand("mocknest.openSelectedSpec", async () => {
+      const selectedSpec = context.workspaceState.get<string>(SPEC_PATH_STATE_KEY);
+      if (!selectedSpec) {
+        vscode.window.showInformationMessage(
+          "No selected OpenAPI spec found. Use Select OpenAPI Spec File first.",
+        );
+        return;
+      }
+
+      const specUri = vscode.Uri.file(selectedSpec);
+      try {
+        await vscode.workspace.fs.stat(specUri);
+      } catch {
+        vscode.window.showErrorMessage(
+          "Selected OpenAPI spec file no longer exists. Clear and reselect your spec.",
+        );
+        return;
+      }
+
+      const doc = await vscode.workspace.openTextDocument(specUri);
+      await vscode.window.showTextDocument(doc, { preview: false });
+    }),
+
     vscode.commands.registerCommand(
       "mocknest.openApiTester",
       (item?: RouteItem) => {
