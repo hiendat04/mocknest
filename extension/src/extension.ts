@@ -106,9 +106,15 @@ export function activate(context: vscode.ExtensionContext) {
       },
     ),
 
-    vscode.commands.registerCommand("mocknest.selectSpec", () =>
-      selectSpecCommand(context, routeTreeProvider),
-    ),
+    vscode.commands.registerCommand("mocknest.selectSpec", async () => {
+      const didSelectSpec = await selectSpecCommand(context, routeTreeProvider);
+      if (didSelectSpec && mockServer?.isRunning()) {
+        void vscode.commands.executeCommand(
+          "mocknest.restartServer",
+          "OpenAPI spec changed. Restarting MockNest server...",
+        );
+      }
+    }),
 
     vscode.commands.registerCommand("mocknest.clearSelectedSpec", async () => {
       const current = context.workspaceState.get<string>(SPEC_PATH_STATE_KEY);
@@ -412,29 +418,33 @@ async function persistRequestLog(
 async function selectSpecCommand(
   context: vscode.ExtensionContext,
   provider: RouteTreeProvider,
-) {
+): Promise<boolean> {
   const files = await vscode.workspace.findFiles("**/openapi.{yaml,yml,json}");
   if (files.length === 0) {
     vscode.window.showErrorMessage("No OpenAPI spec file found in workspace.");
-    return;
+    return false;
   }
   const picked = await vscode.window.showQuickPick(
     files.map((f) => f.fsPath),
     { placeHolder: "Select your OpenAPI spec file" },
   );
-  if (picked) {
-    try {
-      const routes = await parseOpenApiFile(picked);
-      await context.workspaceState.update(SPEC_PATH_STATE_KEY, picked);
-      provider.refresh(routes);
-      ApiTesterPanel.syncRoutes(provider);
-      const relativePath = vscode.workspace.asRelativePath(picked);
-      vscode.window.showInformationMessage(
-        `OpenAPI spec selected: ${relativePath}`,
-      );
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      vscode.window.showErrorMessage(`Failed to parse OpenAPI spec: ${message}`);
-    }
+  if (!picked) {
+    return false;
+  }
+
+  try {
+    const routes = await parseOpenApiFile(picked);
+    await context.workspaceState.update(SPEC_PATH_STATE_KEY, picked);
+    provider.refresh(routes);
+    ApiTesterPanel.syncRoutes(provider);
+    const relativePath = vscode.workspace.asRelativePath(picked);
+    vscode.window.showInformationMessage(
+      `OpenAPI spec selected: ${relativePath}`,
+    );
+    return true;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to parse OpenAPI spec: ${message}`);
+    return false;
   }
 }
