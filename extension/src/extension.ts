@@ -372,13 +372,30 @@ export function activate(context: vscode.ExtensionContext) {
 
   // Watch for changes in the OpenAPI spec file and restart the server.
   context.subscriptions.push(
-    watchOpenApiFile((uri) => {
+    watchOpenApiFile(async (uri) => {
       const selectedSpec = context.workspaceState.get<string>(SPEC_PATH_STATE_KEY);
-      if (!selectedSpec || !mockServer?.isRunning()) {
+      if (!selectedSpec) {
         return;
       }
 
       if (!isSameFilePath(uri.fsPath, selectedSpec)) {
+        return;
+      }
+
+      try {
+        await vscode.workspace.fs.stat(uri);
+      } catch {
+        await context.workspaceState.update(SPEC_PATH_STATE_KEY, undefined);
+        routeTreeProvider.clear();
+        ApiTesterPanel.syncRoutes(routeTreeProvider);
+        await vscode.commands.executeCommand("mocknest.stopServer");
+        vscode.window.showWarningMessage(
+          "Selected OpenAPI spec was deleted. MockNest server stopped and selection cleared.",
+        );
+        return;
+      }
+
+      if (!mockServer?.isRunning()) {
         return;
       }
 
