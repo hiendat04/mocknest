@@ -124,8 +124,14 @@ export function activate(context: vscode.ExtensionContext) {
       }
 
       await context.workspaceState.update(SPEC_PATH_STATE_KEY, undefined);
-      routeTreeProvider.clear();
-      ApiTesterPanel.syncRoutes(routeTreeProvider);
+
+      if (mockServer?.isRunning()) {
+        await vscode.commands.executeCommand("mocknest.stopServer");
+      } else {
+        routeTreeProvider.clear();
+        ApiTesterPanel.syncRoutes(routeTreeProvider);
+      }
+
       vscode.window.showInformationMessage(
         "Cleared selected OpenAPI spec. Select a spec again before next start.",
       );
