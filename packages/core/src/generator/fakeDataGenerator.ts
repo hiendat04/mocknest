@@ -28,6 +28,10 @@ function generateValueFromField(
   fieldName: string,
   schema: OpenAPIV3.SchemaObject,
 ): any {
+  if (schema.enum && schema.enum.length > 0) {
+    return schema.enum[Math.floor(Math.random() * schema.enum.length)];
+  }
+
   const name = fieldName.toLowerCase();
 
   // Prefer semantic values when field names hint at domain meaning.
