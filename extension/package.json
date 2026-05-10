@@ -46,6 +46,11 @@
         "icon": "$(beaker)"
       },
       {
+        "command": "mocknest.openInBrowser",
+        "title": "MockNest: Open in Browser",
+        "icon": "$(link-external)"
+      },
+      {
         "command": "mocknest.restartServer",
         "title": "MockNest: Restart Mock Server",
         "icon": "$(refresh)"
@@ -215,7 +220,12 @@
         {
           "command": "mocknest.openApiTester",
           "when": "view == mocknest.routeTree && viewItem == routeItem",
-          "group": "inline"
+          "group": "inline@1"
+        },
+        {
+          "command": "mocknest.openInBrowser",
+          "when": "view == mocknest.routeTree && viewItem == routeItem",
+          "group": "inline@2"
         },
         {
           "command": "mocknest.copyRequestLogAsCurl",

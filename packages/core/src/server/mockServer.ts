@@ -65,6 +65,7 @@ export class MockServer {
         }
 
         this.options.onRequest?.(route.method, req.path, route.statusCode);
+        console.log(`[MockNest] ${route.method} ${req.path} -> ${route.statusCode}`);
 
         // Artificial delay to simulate real network.
         sendJson(route.statusCode, fakeBody);
@@ -72,6 +73,7 @@ export class MockServer {
     }
 
     this.app.use((req: Request, res: Response) => {
+      console.warn(`[MockNest] 404 Not Found: ${req.method} ${req.path}`);
       res.status(404).json({ error: "Route not mocked", path: req.path });
     });
   }

@@ -176,6 +176,17 @@ export function activate(context: vscode.ExtensionContext) {
       },
     ),
 
+    vscode.commands.registerCommand(
+      "mocknest.openInBrowser",
+      async (item: RouteItem) => {
+        const port = vscode.workspace
+          .getConfiguration("mocknest")
+          .get<number>("port", 3001);
+        const url = `http://localhost:${port}${item.route.path}`;
+        await vscode.env.openExternal(vscode.Uri.parse(url));
+      },
+    ),
+
     vscode.commands.registerCommand("mocknest.clearRequestLog", () => {
       requestLogProvider.clear();
       void persistRequestLog(context, requestLogProvider);

@@ -44,6 +44,17 @@ function generateValueFromField(
   if (name.includes("phone")) return faker.phone.number();
   if (name.includes("address")) return faker.location.streetAddress();
   if (name.includes("city")) return faker.location.city();
+  if (name.includes("zip") || name.includes("postcode"))
+    return faker.location.zipCode();
+  if (name.includes("country")) return faker.location.country();
+  if (name.includes("company")) return faker.company.name();
+  if (name.includes("job") || name.includes("title"))
+    return faker.person.jobTitle();
+  if (name.includes("avatar") || name.includes("portrait"))
+    return faker.image.avatar();
+  if (name.includes("password")) return faker.internet.password();
+  if (name.includes("username") || name.includes("user_name"))
+    return faker.internet.username();
   if (name.includes("url") || name.includes("image")) return faker.image.url();
   if (name.includes("date") || name.includes("time"))
     return faker.date.recent().toISOString();
