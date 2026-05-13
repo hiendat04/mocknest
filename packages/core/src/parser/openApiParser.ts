@@ -19,6 +19,7 @@ export interface ParsedRoute {
   requestRequired?: boolean;
   responseSchema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
   responseDescription?: string;
+  responseHeaders?: Record<string, string>;
   statusCode: number;
 }
 
@@ -43,6 +44,15 @@ export async function parseOpenApiFile(
 
       const { statusCode, response } = pickSuccessResponse(operation.responses);
       const responseSchema = response?.content?.["application/json"]?.schema;
+      const responseHeaders: Record<string, string> = {};
+      
+      if (response?.headers) {
+        for (const [name, header] of Object.entries(response.headers)) {
+          if (!isReferenceObject(header) && header.example) {
+            responseHeaders[name] = String(header.example);
+          }
+        }
+      }
 
       const requestBody = operation.requestBody as
         | OpenAPIV3.RequestBodyObject
@@ -68,6 +78,7 @@ export async function parseOpenApiFile(
         requestRequired: requestBody?.required,
         responseSchema,
         responseDescription: response?.description,
+        responseHeaders: Object.keys(responseHeaders).length > 0 ? responseHeaders : undefined,
         statusCode,
       });
     }

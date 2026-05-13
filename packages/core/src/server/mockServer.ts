@@ -33,6 +33,11 @@ export class MockServer {
       (this.app as any)[method](route.path, (req: Request, res: Response) => {
         const sendJson = (statusCode: number, payload: unknown): void => {
           setTimeout(() => {
+            if (route.responseHeaders) {
+              for (const [name, value] of Object.entries(route.responseHeaders)) {
+                res.setHeader(name, value);
+              }
+            }
             res.setHeader("Content-Type", "application/json");
             res.status(statusCode).send(JSON.stringify(payload, null, 2));
           }, this.options.delay ?? 20);
@@ -42,6 +47,7 @@ export class MockServer {
           const errors = validateRouteRequest(route, req);
           if (errors.length > 0) {
             this.options.onRequest?.(route.method, req.path, 400);
+            console.warn(`[MockNest] Request validation failed for ${route.method} ${req.path}:`, errors);
             sendJson(400, {
               error: "Request validation failed",
               details: errors,
@@ -59,6 +65,7 @@ export class MockServer {
           const random = Math.random();
           if (random < this.options.errorRate) {
             this.options.onRequest?.(route.method, req.path, 500);
+            console.error(`[MockNest] Simulated 500 Error for ${route.method} ${req.path}`);
             sendJson(500, { error: "Internal Server Error (Simulated)" });
             return;
           }
@@ -66,6 +73,9 @@ export class MockServer {
 
         this.options.onRequest?.(route.method, req.path, route.statusCode);
         console.log(`[MockNest] ${route.method} ${req.path} -> ${route.statusCode}`);
+        if (route.method !== "GET" && req.body && Object.keys(req.body).length > 0) {
+          console.log(`[MockNest] Request Body:`, JSON.stringify(req.body, null, 2));
+        }
 
         // Artificial delay to simulate real network.
         sendJson(route.statusCode, fakeBody);
