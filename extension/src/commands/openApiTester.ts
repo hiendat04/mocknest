@@ -452,6 +452,17 @@ export class ApiTesterPanel {
         </div>
       </div>
 
+      <div class="row-2" style="margin-top: 10px;">
+        <div>
+          <div class="label">Mock Delay (ms)</div>
+          <input id="mockDelay" type="number" placeholder="e.g. 500" />
+        </div>
+        <div>
+          <div class="label">Mock Status Code</div>
+          <input id="mockStatusCode" type="number" placeholder="e.g. 403" />
+        </div>
+      </div>
+
       <div class="actions" style="margin-top: 10px;">
         <button id="sendButton">Send Request</button>
         <button id="refreshButton" class="secondary">Refresh Routes</button>
@@ -518,6 +529,8 @@ export class ApiTesterPanel {
     const pathInput = document.getElementById("path");
     const headersInput = document.getElementById("headers");
     const bodyInput = document.getElementById("body");
+    const mockDelayInput = document.getElementById("mockDelay");
+    const mockStatusCodeInput = document.getElementById("mockStatusCode");
     const sendButton = document.getElementById("sendButton");
     const refreshButton = document.getElementById("refreshButton");
 
@@ -553,11 +566,28 @@ export class ApiTesterPanel {
     });
 
     sendButton.addEventListener("click", () => {
+      let customHeaders = {};
+      try {
+        const val = headersInput.value.trim();
+        if (val) {
+          customHeaders = JSON.parse(val);
+        }
+      } catch (e) {
+        // Fallback
+      }
+
+      if (mockDelayInput.value) {
+        customHeaders["x-mock-delay"] = mockDelayInput.value;
+      }
+      if (mockStatusCodeInput.value) {
+        customHeaders["x-mock-response-code"] = mockStatusCodeInput.value;
+      }
+
       const payload = {
         baseUrl: baseUrlInput.value.trim(),
         method: methodInput.value.trim(),
         path: pathInput.value.trim(),
-        headers: headersInput.value,
+        headers: JSON.stringify(customHeaders),
         body: bodyInput.value,
       };
 

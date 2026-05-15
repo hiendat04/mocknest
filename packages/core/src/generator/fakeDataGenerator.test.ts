@@ -77,4 +77,55 @@ describe("fakeDataGenerator", () => {
     const result = generateFakeData(schema);
     expect(["red", "green", "blue"]).toContain(result);
   });
+
+  it("should use 'example' value if provided", () => {
+    const schema = {
+      type: "string",
+      example: "custom-example",
+    };
+    const result = generateFakeData(schema);
+    expect(result).toBe("custom-example");
+  });
+
+  it("should use 'default' value if provided and no example", () => {
+    const schema = {
+      type: "string",
+      default: "default-value",
+    };
+    const result = generateFakeData(schema);
+    expect(result).toBe("default-value");
+  });
+
+  it("should respect 'format' property for strings", () => {
+    const schemas = [
+      { type: "string", format: "email" },
+      { type: "string", format: "uuid" },
+      { type: "string", format: "date-time" },
+      { type: "string", format: "ipv4" },
+    ];
+
+    expect(generateFakeData(schemas[0])).toContain("@");
+    expect(generateFakeData(schemas[1])).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+    expect(new Date(generateFakeData(schemas[2])).toString()).not.toBe(
+      "Invalid Date",
+    );
+    expect(generateFakeData(schemas[3])).toMatch(
+      /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/,
+    );
+  });
+
+  it("should prefer 'format' over field name heuristics", () => {
+    const objSchema = {
+      type: "object",
+      properties: {
+        email_address: { type: "string", format: "uuid" },
+      },
+    };
+    const result = generateFakeData(objSchema);
+    expect(result.email_address).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
 });

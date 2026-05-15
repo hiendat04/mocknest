@@ -28,11 +28,43 @@ function generateValueFromField(
   fieldName: string,
   schema: OpenAPIV3.SchemaObject,
 ): any {
+  if (schema.example !== undefined) return schema.example;
+  if (schema.default !== undefined) return schema.default;
+
   if (schema.enum && schema.enum.length > 0) {
     return schema.enum[Math.floor(Math.random() * schema.enum.length)];
   }
 
   const name = fieldName.toLowerCase();
+
+  // Prefer 'format' for strings when available.
+  if (schema.type === "string" && schema.format) {
+    switch (schema.format) {
+      case "email":
+        return faker.internet.email();
+      case "uuid":
+        return faker.string.uuid();
+      case "date-time":
+        return faker.date.recent().toISOString();
+      case "date":
+        return faker.date.recent().toISOString().split("T")[0];
+      case "ipv4":
+        return faker.internet.ipv4();
+      case "ipv6":
+        return faker.internet.ipv6();
+      case "uri":
+      case "url":
+        return faker.internet.url();
+      case "password":
+        return faker.internet.password();
+      case "hostname":
+        return faker.internet.domainName();
+      case "byte":
+        return faker.string.alphanumeric(10);
+      case "binary":
+        return faker.string.alphanumeric(20);
+    }
+  }
 
   // Prefer semantic values when field names hint at domain meaning.
   if (name.includes("email")) return faker.internet.email();
