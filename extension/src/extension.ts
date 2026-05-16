@@ -85,6 +85,8 @@ export function activate(context: vscode.ExtensionContext) {
                 requestInfo.method,
                 requestInfo.path,
                 requestInfo.statusCode,
+                requestInfo.requestBody,
+                requestInfo.responseBody,
               );
               void persistRequestLog(context, requestLogProvider);
             } else {

@@ -8,7 +8,13 @@ export async function startServerCommand(
   onStarted?: (
     server: MockServer,
     port: number,
-    requestInfo?: { method: string; path: string; statusCode: number },
+    requestInfo?: {
+      method: string;
+      path: string;
+      statusCode: number;
+      requestBody?: any;
+      responseBody?: any;
+    },
   ) => void,
   isRestart: boolean = false,
 ): Promise<void> {
@@ -42,17 +48,19 @@ export async function startServerCommand(
     delay,
     errorRate,
     strictValidation,
-    onRequest: (method, path, statusCode) => {
-      onStarted?.(server, port, { method, path, statusCode });
-      void vscode.commands.executeCommand(
-        "setContext",
-        "mocknest.lastRequest",
-        {
-          method,
-          path,
-          statusCode,
-        },
-      );
+    onRequest: (method, path, statusCode, requestBody, responseBody) => {
+      onStarted?.(server, port, {
+        method,
+        path,
+        statusCode,
+        requestBody,
+        responseBody,
+      });
+      void vscode.commands.executeCommand("setContext", "mocknest.lastRequest", {
+        method,
+        path,
+        statusCode,
+      });
     },
   });
 

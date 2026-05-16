@@ -127,4 +127,40 @@ describe("MockServer", () => {
     expect(body200).toHaveProperty("ok");
     expect(body200).not.toHaveProperty("error");
   });
+
+  it("should call onRequest with bodies", async () => {
+    let capturedReq: any = null;
+    let capturedRes: any = null;
+
+    server = new MockServer({
+      port: 3005,
+      routes: [
+        {
+          method: "POST",
+          path: "/log",
+          statusCode: 201,
+          responseSchema: {
+            type: "object",
+            properties: { created: { type: "boolean" } },
+          },
+        },
+      ],
+      onRequest: (_m, _p, _s, reqBody, resBody) => {
+        capturedReq = reqBody;
+        capturedRes = resBody;
+      },
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3005/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "test-item" }),
+    });
+
+    expect(response.status).toBe(201);
+    expect(capturedReq).toEqual({ name: "test-item" });
+    expect(capturedRes).toEqual({ created: expect.any(Boolean) });
+  });
 });

@@ -8,7 +8,13 @@ import { generateFakeData } from "../generator/fakeDataGenerator";
 export interface MockServerOptions {
   port: number;
   routes: ParsedRoute[];
-  onRequest?: (method: string, path: string, statusCode: number) => void;
+  onRequest?: (
+    method: string,
+    path: string,
+    statusCode: number,
+    requestBody?: any,
+    responseBody?: any,
+  ) => void;
   delay?: number;
   errorRate?: number;
   strictValidation?: boolean;
@@ -68,6 +74,13 @@ export class MockServer {
           payload: unknown,
           sHeaders?: Record<string, string>,
         ): void => {
+          this.options.onRequest?.(
+            route.method,
+            req.path,
+            sCode,
+            req.body,
+            payload,
+          );
           setTimeout(() => {
             if (sHeaders) {
               for (const [name, value] of Object.entries(sHeaders)) {
@@ -82,7 +95,6 @@ export class MockServer {
         if (this.options.strictValidation) {
           const errors = validateRouteRequest(route, req);
           if (errors.length > 0) {
-            this.options.onRequest?.(route.method, req.path, 400);
             console.warn(
               `[MockNest] Request validation failed for ${route.method} ${req.path}:`,
               errors,
@@ -95,15 +107,12 @@ export class MockServer {
           }
         }
 
-        const fakeBody = responseSchema
-          ? generateFakeData(responseSchema)
-          : {};
+        const fakeBody = responseSchema ? generateFakeData(responseSchema) : {};
 
         // Chaos mode (error rate)
         if (this.options.errorRate && this.options.errorRate > 0) {
           const random = Math.random();
           if (random < this.options.errorRate) {
-            this.options.onRequest?.(route.method, req.path, 500);
             console.error(
               `[MockNest] Simulated 500 Error for ${route.method} ${req.path}`,
             );
@@ -112,7 +121,6 @@ export class MockServer {
           }
         }
 
-        this.options.onRequest?.(route.method, req.path, statusCode);
         console.log(`[MockNest] ${route.method} ${req.path} -> ${statusCode}`);
 
         // Artificial delay to simulate real network.

@@ -6,11 +6,16 @@ export interface RequestLogEntry {
   path: string;
   statusCode: number;
   timestamp: string;
+  requestBody?: any;
+  responseBody?: any;
 }
 
 export class RequestLogItem extends vscode.TreeItem {
   constructor(public readonly entry: RequestLogEntry) {
-    super(`${entry.method} ${entry.path}`, vscode.TreeItemCollapsibleState.None);
+    super(
+      `${entry.method} ${entry.path}`,
+      vscode.TreeItemCollapsibleState.None,
+    );
 
     const color = methodColor(entry.method);
     this.description = `${entry.statusCode} • ${formatTime(entry.timestamp)}`;
@@ -45,13 +50,21 @@ export class RequestLogProvider
     return this.entries.map((entry) => new RequestLogItem(entry));
   }
 
-  append(method: string, path: string, statusCode: number): void {
+  append(
+    method: string,
+    path: string,
+    statusCode: number,
+    requestBody?: any,
+    responseBody?: any,
+  ): void {
     const entry: RequestLogEntry = {
       id: String(this.nextId++),
       method,
       path,
       statusCode,
       timestamp: new Date().toISOString(),
+      requestBody,
+      responseBody,
     };
 
     this.entries.unshift(entry);
