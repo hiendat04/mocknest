@@ -76,4 +76,55 @@ describe("MockServer", () => {
     // Should be around 10ms + overhead, definitely less than 200ms
     expect(duration).toBeLessThan(150);
   });
+
+  it("should use the correct schema for a requested status code", async () => {
+    server = new MockServer({
+      port: 3004,
+      routes: [
+        {
+          method: "GET",
+          path: "/multi",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [
+            {
+              statusCode: "200",
+              schema: {
+                type: "object",
+                properties: { ok: { type: "boolean" } },
+              },
+            },
+            {
+              statusCode: "400",
+              schema: {
+                type: "object",
+                properties: { error: { type: "string" } },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    await server.start();
+
+    // Request 400
+    const response400 = await fetch("http://localhost:3004/multi", {
+      headers: { "x-mock-response-code": "400" },
+    });
+    expect(response400.status).toBe(400);
+    const body400: any = await response400.json();
+    expect(body400).toHaveProperty("error");
+    expect(body400).not.toHaveProperty("ok");
+
+    // Request default (200)
+    const response200 = await fetch("http://localhost:3004/multi");
+    expect(response200.status).toBe(200);
+    const body200: any = await response200.json();
+    expect(body200).toHaveProperty("ok");
+    expect(body200).not.toHaveProperty("error");
+  });
 });

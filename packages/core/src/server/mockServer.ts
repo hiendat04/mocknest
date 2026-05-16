@@ -2,7 +2,7 @@ import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import { Server } from "http";
 import { OpenAPIV3 } from "openapi-types";
-import { ParsedRoute } from "../parser/openApiParser";
+import { ParsedRoute, ParsedResponse } from "../parser/openApiParser";
 import { generateFakeData } from "../generator/fakeDataGenerator";
 
 export interface MockServerOptions {
@@ -31,27 +31,51 @@ export class MockServer {
 
       // Dispatch handlers from the HTTP verb string in the parsed route.
       (this.app as any)[method](route.path, (req: Request, res: Response) => {
-        if (route.method !== "GET" && req.body && Object.keys(req.body).length > 0) {
+        if (
+          route.method !== "GET" &&
+          req.body &&
+          Object.keys(req.body).length > 0
+        ) {
           console.log(
             `[MockNest] Request Body:`,
             JSON.stringify(req.body, null, 2),
           );
         }
 
-        const sendJson = (statusCode: number, payload: unknown): void => {
-          const headerDelay = req.header("x-mock-delay");
-          const delay = headerDelay
-            ? parseInt(headerDelay, 10)
-            : (this.options.delay ?? 20);
+        const headerDelay = req.header("x-mock-delay");
+        const delay = headerDelay
+          ? parseInt(headerDelay, 10)
+          : (this.options.delay ?? 20);
 
+        const headerStatusCode =
+          req.header("x-mock-response-code") ||
+          req.header("x-mock-status-code");
+        const statusCode = headerStatusCode
+          ? parseInt(headerStatusCode, 10)
+          : route.statusCode;
+
+        const bestResponse = findBestResponse(route, statusCode);
+
+        const responseSchema =
+          bestResponse?.schema ||
+          (statusCode === route.statusCode ? route.responseSchema : undefined);
+        const responseHeaders =
+          bestResponse?.headers ||
+          (statusCode === route.statusCode ? route.responseHeaders : undefined);
+
+        const sendJson = (
+          sCode: number,
+          payload: unknown,
+          sHeaders?: Record<string, string>,
+        ): void => {
           setTimeout(() => {
-            if (route.responseHeaders) {
-              for (const [name, value] of Object.entries(route.responseHeaders)) {
+            if (sHeaders) {
+              for (const [name, value] of Object.entries(sHeaders)) {
                 res.setHeader(name, value);
               }
             }
             res.setHeader("Content-Type", "application/json");
-            res.status(statusCode).send(JSON.stringify(payload, null, 2));
+            res.status(sCode).send(JSON.stringify(payload, null, 2));
           }, delay);
         };
 
@@ -71,8 +95,8 @@ export class MockServer {
           }
         }
 
-        const fakeBody = route.responseSchema
-          ? generateFakeData(route.responseSchema)
+        const fakeBody = responseSchema
+          ? generateFakeData(responseSchema)
           : {};
 
         // Chaos mode (error rate)
@@ -88,20 +112,11 @@ export class MockServer {
           }
         }
 
-        const headerStatusCode =
-          req.header("x-mock-response-code") ||
-          req.header("x-mock-status-code");
-        const statusCode = headerStatusCode
-          ? parseInt(headerStatusCode, 10)
-          : route.statusCode;
-
         this.options.onRequest?.(route.method, req.path, statusCode);
-        console.log(
-          `[MockNest] ${route.method} ${req.path} -> ${statusCode}`,
-        );
+        console.log(`[MockNest] ${route.method} ${req.path} -> ${statusCode}`);
 
         // Artificial delay to simulate real network.
-        sendJson(statusCode, fakeBody);
+        sendJson(statusCode, fakeBody, responseHeaders);
       });
     }
 
@@ -449,4 +464,27 @@ function isReferenceObject(value: unknown): value is OpenAPIV3.ReferenceObject {
       typeof value === "object" &&
       "$ref" in (value as Record<string, unknown>),
   );
+}
+
+function findBestResponse(
+  route: ParsedRoute,
+  statusCode: number,
+): ParsedResponse | undefined {
+  const codeStr = String(statusCode);
+  const responses = route.responses || [];
+
+  // 1. Exact match
+  let match = responses.find((r) => r.statusCode === codeStr);
+  if (match) return match;
+
+  // 2. Wildcard match (e.g. 2XX, 4XX)
+  const wildcard = codeStr[0] + "XX";
+  match = responses.find((r) => r.statusCode === wildcard);
+  if (match) return match;
+
+  // 3. "default" response
+  match = responses.find((r) => r.statusCode === "default");
+  if (match) return match;
+
+  return undefined;
 }

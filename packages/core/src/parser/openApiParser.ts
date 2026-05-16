@@ -9,6 +9,13 @@ export interface ParsedParameter {
   schema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
 }
 
+export interface ParsedResponse {
+  statusCode: string;
+  description?: string;
+  schema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
+  headers?: Record<string, string>;
+}
+
 export interface ParsedRoute {
   method: string;
   path: string;
@@ -20,6 +27,7 @@ export interface ParsedRoute {
   responseSchema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
   responseDescription?: string;
   responseHeaders?: Record<string, string>;
+  responses: ParsedResponse[];
   statusCode: number;
 }
 
@@ -45,7 +53,7 @@ export async function parseOpenApiFile(
       const { statusCode, response } = pickSuccessResponse(operation.responses);
       const responseSchema = response?.content?.["application/json"]?.schema;
       const responseHeaders: Record<string, string> = {};
-      
+
       if (response?.headers) {
         for (const [name, header] of Object.entries(response.headers)) {
           if (!isReferenceObject(header) && header.example) {
@@ -54,14 +62,38 @@ export async function parseOpenApiFile(
         }
       }
 
+      const allResponses: ParsedResponse[] = [];
+      if (operation.responses) {
+        for (const [code, resp] of Object.entries(operation.responses)) {
+          if (isReferenceObject(resp)) continue;
+
+          const headers: Record<string, string> = {};
+          if (resp.headers) {
+            for (const [hName, hValue] of Object.entries(resp.headers)) {
+              if (!isReferenceObject(hValue) && hValue.example) {
+                headers[hName] = String(hValue.example);
+              }
+            }
+          }
+
+          allResponses.push({
+            statusCode: code,
+            description: resp.description,
+            schema: resp.content?.["application/json"]?.schema,
+            headers: Object.keys(headers).length > 0 ? headers : undefined,
+          });
+        }
+      }
+
       const requestBody = operation.requestBody as
         | OpenAPIV3.RequestBodyObject
         | undefined;
       const requestSchema = requestBody?.content?.["application/json"]?.schema;
 
-      const pathParameters = (pathItem.parameters || []) as OpenAPIV3.ParameterObject[];
-      const operationParameters =
-        (operation.parameters || []) as OpenAPIV3.ParameterObject[];
+      const pathParameters = (pathItem.parameters ||
+        []) as OpenAPIV3.ParameterObject[];
+      const operationParameters = (operation.parameters ||
+        []) as OpenAPIV3.ParameterObject[];
       const parameters = normalizeParameters([
         ...pathParameters,
         ...operationParameters,
@@ -78,7 +110,9 @@ export async function parseOpenApiFile(
         requestRequired: requestBody?.required,
         responseSchema,
         responseDescription: response?.description,
-        responseHeaders: Object.keys(responseHeaders).length > 0 ? responseHeaders : undefined,
+        responseHeaders:
+          Object.keys(responseHeaders).length > 0 ? responseHeaders : undefined,
+        responses: allResponses,
         statusCode,
       });
     }

@@ -13,6 +13,12 @@ interface RouteParameterInfo {
   type: string;
 }
 
+interface ResponseOption {
+  statusCode: string;
+  description?: string;
+  example?: unknown;
+}
+
 interface RouteOption {
   method: string;
   path: string;
@@ -25,6 +31,7 @@ interface RouteOption {
   parameters: RouteParameterInfo[];
   requestExample?: unknown;
   responseExample?: unknown;
+  responses: ResponseOption[];
 }
 
 interface SendRequestPayload {
@@ -565,6 +572,10 @@ export class ApiTesterPanel {
       applyRoute(selected, true);
     });
 
+    mockStatusCodeInput.addEventListener("input", () => {
+      renderRouteInsight(getSelectedRoute());
+    });
+
     sendButton.addEventListener("click", () => {
       let customHeaders = {};
       try {
@@ -723,7 +734,8 @@ export class ApiTesterPanel {
 
     function renderRouteInsight(route) {
       if (!route) {
-        endpointSummary.textContent = "Select a route to see useful contract details.";
+        endpointSummary.textContent =
+          "Select a route to see useful contract details.";
         endpointStatus.textContent = "-";
         endpointResponseDescription.textContent = "-";
         pathParamList.innerHTML = '<span class="muted">None</span>';
@@ -732,13 +744,26 @@ export class ApiTesterPanel {
         requestExample.textContent = "(No request body schema)";
         responseExample.textContent = "(No JSON response schema)";
         contractCheck.className = "mono";
-        contractCheck.textContent = "Select a route and send a request to validate contract behavior.";
+        contractCheck.textContent =
+          "Select a route and send a request to validate contract behavior.";
         return;
       }
 
-      endpointSummary.textContent = route.summary || route.description || "No endpoint summary available.";
-      endpointStatus.textContent = String(route.expectedStatus || "-");
-      endpointResponseDescription.textContent = route.responseDescription || "No response description provided.";
+      const requestedStatus =
+        mockStatusCodeInput.value || String(route.expectedStatus);
+      const bestResponse = findBestResponseInUI(route, requestedStatus);
+
+      endpointSummary.textContent =
+        route.summary ||
+        route.description ||
+        "No endpoint summary available.";
+
+      endpointStatus.textContent = bestResponse
+        ? bestResponse.statusCode
+        : String(route.expectedStatus);
+      endpointResponseDescription.textContent = bestResponse
+        ? bestResponse.description
+        : route.responseDescription || "No response description provided.";
 
       renderParameterList(pathParamList, route.parameters, "path");
       renderParameterList(queryParamList, route.parameters, "query");
@@ -750,19 +775,45 @@ export class ApiTesterPanel {
       }
 
       if (route.requestExample) {
-        requestExample.innerHTML = syntaxHighlight(JSON.stringify(route.requestExample, null, 2));
+        requestExample.innerHTML = syntaxHighlight(
+          JSON.stringify(route.requestExample, null, 2),
+        );
       } else {
         requestExample.textContent = "(No request body schema)";
       }
 
-      if (route.responseExample) {
-        responseExample.innerHTML = syntaxHighlight(JSON.stringify(route.responseExample, null, 2));
+      const resExample = bestResponse
+        ? bestResponse.example
+        : route.responseExample;
+      if (resExample) {
+        responseExample.innerHTML = syntaxHighlight(
+          JSON.stringify(resExample, null, 2),
+        );
       } else {
         responseExample.textContent = "(No JSON response schema)";
       }
 
       contractCheck.className = "mono";
-      contractCheck.textContent = "Expected status from OpenAPI: " + String(route.expectedStatus);
+      contractCheck.textContent =
+        "Expected status from OpenAPI: " +
+        (bestResponse ? bestResponse.statusCode : route.expectedStatus);
+    }
+
+    function findBestResponseInUI(route, statusCode) {
+      const codeStr = String(statusCode);
+      const responses = route.responses || [];
+
+      let match = responses.find((r) => r.statusCode === codeStr);
+      if (match) return match;
+
+      const wildcard = codeStr[0] + "XX";
+      match = responses.find((r) => r.statusCode === wildcard);
+      if (match) return match;
+
+      match = responses.find((r) => r.statusCode === "default");
+      if (match) return match;
+
+      return undefined;
     }
 
     function getSelectedRoute() {
@@ -900,6 +951,11 @@ function createRouteOption(route: ParsedRoute): RouteOption {
     })),
     requestExample: createExample(route.requestSchema),
     responseExample: createExample(route.responseSchema),
+    responses: (route.responses || []).map((resp) => ({
+      statusCode: resp.statusCode,
+      description: resp.description,
+      example: createExample(resp.schema),
+    })),
   };
 }
 
