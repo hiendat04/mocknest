@@ -128,4 +128,46 @@ describe("fakeDataGenerator", () => {
       /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
     );
   });
+
+  it("should respect minItems and maxItems for arrays", () => {
+    const schema = {
+      type: "array",
+      items: { type: "string" },
+      minItems: 10,
+      maxItems: 10,
+    };
+    const result = generateFakeData(schema);
+    expect(result).toHaveLength(10);
+  });
+
+  it("should respect minimum and maximum for numbers", () => {
+    const schema = {
+      type: "number",
+      minimum: 50,
+      maximum: 55,
+    };
+    const result = generateFakeData(schema);
+    expect(result).toBeGreaterThanOrEqual(50);
+    expect(result).toBeLessThanOrEqual(55);
+  });
+
+  it("should respect minLength and maxLength for strings", () => {
+    const schema = {
+      type: "string",
+      minLength: 50,
+      maxLength: 60,
+    };
+    const result = generateFakeData(schema);
+    expect(result.length).toBeGreaterThanOrEqual(50);
+    expect(result.length).toBeLessThanOrEqual(60);
+  });
+
+  it("should respect pattern for strings", () => {
+    const schema = {
+      type: "string",
+      pattern: "^[0-9]{3}-[A-Z]{3}$",
+    };
+    const result = generateFakeData(schema);
+    expect(result).toMatch(/^[0-9]{3}-[A-Z]{3}$/);
+  });
 });

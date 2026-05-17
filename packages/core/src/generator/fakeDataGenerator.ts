@@ -9,7 +9,9 @@ export function generateFakeData(
   if (!schema) return {};
 
   if (schema.type === "array") {
-    const count = faker.number.int({ min: 2, max: 5 });
+    const min = schema.minItems ?? 2;
+    const max = schema.maxItems ?? Math.max(min, 5);
+    const count = faker.number.int({ min, max });
     return Array.from({ length: count }, () =>
       generateFakeData(schema.items, context),
     );
@@ -59,6 +61,16 @@ function generateValueFromField(
 
   const name = fieldName.toLowerCase();
 
+  if (schema.type === "string" && schema.pattern) {
+    try {
+      // Strip anchors if present, as Faker might include them literally.
+      const pattern = schema.pattern.replace(/^\^/, "").replace(/\$$/, "");
+      return faker.helpers.fromRegExp(new RegExp(pattern));
+    } catch {
+      // Fallback if pattern is invalid
+    }
+  }
+
   // Prefer 'format' for strings when available.
   if (schema.type === "string" && schema.format) {
     switch (schema.format) {
@@ -82,9 +94,9 @@ function generateValueFromField(
       case "hostname":
         return faker.internet.domainName();
       case "byte":
-        return faker.string.alphanumeric(10);
+        return faker.string.alphanumeric(schema.minLength || 10);
       case "binary":
-        return faker.string.alphanumeric(20);
+        return faker.string.alphanumeric(schema.minLength || 20);
     }
   }
 
@@ -114,16 +126,32 @@ function generateValueFromField(
     return faker.date.recent().toISOString();
   if (name.includes("id")) return faker.string.uuid();
   if (name.includes("price") || name.includes("amount"))
-    return faker.number.float({ min: 1, max: 999, fractionDigits: 2 });
+    return faker.number.float({
+      min: schema.minimum ?? 1,
+      max: schema.maximum ?? 999,
+      fractionDigits: 2,
+    });
   if (name.includes("description") || name.includes("bio"))
     return faker.lorem.sentence();
 
   switch (schema.type) {
     case "string":
+      if (schema.minLength !== undefined || schema.maxLength !== undefined) {
+        return faker.string.alphanumeric({
+          length: {
+            min: schema.minLength ?? 1,
+            max: schema.maxLength ?? Math.max(schema.minLength ?? 0, 20),
+          },
+        });
+      }
       return faker.lorem.word();
     case "number":
     case "integer":
-      return faker.number.int({ min: 1, max: 100 });
+      const min = schema.minimum ?? 1;
+      const max = schema.maximum ?? Math.max(min, 100);
+      return schema.type === "integer"
+        ? faker.number.int({ min, max })
+        : faker.number.float({ min, max, fractionDigits: 2 });
     case "boolean":
       return faker.datatype.boolean();
     default:
