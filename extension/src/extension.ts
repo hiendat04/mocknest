@@ -87,6 +87,7 @@ export function activate(context: vscode.ExtensionContext) {
                 requestInfo.statusCode,
                 requestInfo.requestBody,
                 requestInfo.responseBody,
+                requestInfo.requestHeaders,
               );
               void persistRequestLog(context, requestLogProvider);
             } else {
@@ -374,7 +375,32 @@ export function activate(context: vscode.ExtensionContext) {
         const port = vscode.workspace
           .getConfiguration("mocknest")
           .get<number>("port", 3001);
-        const command = `curl -i -X ${entry.method} http://localhost:${port}${entry.path}`;
+
+        let command = `curl -i -X ${entry.method} http://localhost:${port}${entry.path}`;
+
+        // Add headers (excluding some internal ones if necessary)
+        if (entry.requestHeaders) {
+          for (const [key, value] of Object.entries(entry.requestHeaders)) {
+            // Skip common internal headers to keep curl clean
+            if (
+              ["host", "connection", "content-length", "accept-encoding"].includes(
+                key.toLowerCase(),
+              )
+            ) {
+              continue;
+            }
+            command += ` -H "${key}: ${value}"`;
+          }
+        }
+
+        // Add body
+        if (
+          entry.requestBody &&
+          ["POST", "PUT", "PATCH"].includes(entry.method.toUpperCase())
+        ) {
+          const bodyStr = JSON.stringify(entry.requestBody).replace(/"/g, '\\"');
+          command += ` -d "${bodyStr}"`;
+        }
 
         await vscode.env.clipboard.writeText(command);
         vscode.window.showInformationMessage("Copied cURL command.");

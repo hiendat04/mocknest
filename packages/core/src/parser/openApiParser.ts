@@ -3,7 +3,7 @@ import { OpenAPIV3 } from "openapi-types";
 
 export interface ParsedParameter {
   name: string;
-  in: "path" | "query";
+  in: "path" | "query" | "header" | "cookie";
   required: boolean;
   description?: string;
   schema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
@@ -166,7 +166,12 @@ function normalizeParameters(
       continue;
     }
 
-    if (parameter.in !== "path" && parameter.in !== "query") {
+    if (
+      parameter.in !== "path" &&
+      parameter.in !== "query" &&
+      parameter.in !== "header" &&
+      parameter.in !== "cookie"
+    ) {
       continue;
     }
 

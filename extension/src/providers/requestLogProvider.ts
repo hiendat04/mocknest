@@ -8,6 +8,7 @@ export interface RequestLogEntry {
   timestamp: string;
   requestBody?: any;
   responseBody?: any;
+  requestHeaders?: Record<string, any>;
 }
 
 export class RequestLogItem extends vscode.TreeItem {
@@ -56,6 +57,7 @@ export class RequestLogProvider
     statusCode: number,
     requestBody?: any,
     responseBody?: any,
+    requestHeaders?: Record<string, any>,
   ): void {
     const entry: RequestLogEntry = {
       id: String(this.nextId++),
@@ -65,6 +67,7 @@ export class RequestLogProvider
       timestamp: new Date().toISOString(),
       requestBody,
       responseBody,
+      requestHeaders,
     };
 
     this.entries.unshift(entry);

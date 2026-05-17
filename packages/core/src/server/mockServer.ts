@@ -14,6 +14,7 @@ export interface MockServerOptions {
     statusCode: number,
     requestBody?: any,
     responseBody?: any,
+    requestHeaders?: Record<string, any>,
   ) => void;
   delay?: number;
   errorRate?: number;
@@ -80,6 +81,7 @@ export class MockServer {
             sCode,
             req.body,
             payload,
+            req.headers,
           );
           setTimeout(() => {
             if (sHeaders) {
@@ -107,7 +109,9 @@ export class MockServer {
           }
         }
 
-        const fakeBody = responseSchema ? generateFakeData(responseSchema) : {};
+        const fakeBody = responseSchema
+          ? generateFakeData(responseSchema, { ...req.query, ...req.params })
+          : {};
 
         // Chaos mode (error rate)
         if (this.options.errorRate && this.options.errorRate > 0) {
@@ -161,10 +165,22 @@ function validateRouteRequest(route: ParsedRoute, req: Request): string[] {
   const errors: string[] = [];
 
   for (const parameter of route.parameters ?? []) {
-    const rawValue =
-      parameter.in === "path"
-        ? req.params[parameter.name]
-        : req.query[parameter.name];
+    let rawValue: any;
+
+    switch (parameter.in) {
+      case "path":
+        rawValue = req.params[parameter.name];
+        break;
+      case "query":
+        rawValue = req.query[parameter.name];
+        break;
+      case "header":
+        rawValue = req.header(parameter.name);
+        break;
+      case "cookie":
+        rawValue = (req as any).cookies?.[parameter.name];
+        break;
+    }
 
     const isMissing =
       rawValue === undefined ||
@@ -221,58 +237,36 @@ function validateParameterValue(
 
     if (schema.items && !isReferenceObject(schema.items)) {
       return arrayValues.flatMap((item, index) =>
-        validateParameterValue(item, schema.items as OpenAPIV3.SchemaObject, `${location}[${index}]`),
+        validateParameterValue(
+          item,
+          schema.items as OpenAPIV3.SchemaObject,
+          `${location}[${index}]`,
+        ),
       );
     }
 
     return [];
   }
 
-  const value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
-  const errors: string[] = [];
+  let value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
 
-  if (schema.enum && !schema.enum.some((option) => String(option) === String(value))) {
-    errors.push(
-      `Invalid ${location}: expected one of [${schema.enum.join(", ")}], received '${String(value)}'.`,
-    );
-    return errors;
+  // Coerce parameter values to their expected types for schema validation.
+  if (typeof value === "string") {
+    if (schema.type === "integer" || schema.type === "number") {
+      const coerced = Number(value);
+      if (!isNaN(coerced) && value.trim() !== "") {
+        value = coerced;
+      }
+    } else if (schema.type === "boolean") {
+      const lower = value.toLowerCase();
+      if (lower === "true") value = true;
+      else if (lower === "false") value = false;
+    }
   }
 
-  switch (schema.type) {
-    case "integer": {
-      const isInteger =
-        typeof value === "number"
-          ? Number.isInteger(value)
-          : typeof value === "string" && /^-?\d+$/.test(value.trim());
-
-      if (!isInteger) {
-        errors.push(`Invalid ${location}: expected integer, received '${String(value)}'.`);
-      }
-      break;
-    }
-    case "number": {
-      const parsed =
-        typeof value === "number" ? value : Number(String(value).trim());
-      if (!Number.isFinite(parsed)) {
-        errors.push(`Invalid ${location}: expected number, received '${String(value)}'.`);
-      }
-      break;
-    }
-    case "boolean": {
-      const asText = String(value).trim().toLowerCase();
-      const validBoolean =
-        typeof value === "boolean" || asText === "true" || asText === "false";
-      if (!validBoolean) {
-        errors.push(`Invalid ${location}: expected boolean, received '${String(value)}'.`);
-      }
-      break;
-    }
-    default:
-      break;
-  }
-
-  return errors;
+  return validateSchemaValue(value, schema, location);
 }
+
 
 function validateSchemaValue(
   value: unknown,

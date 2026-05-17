@@ -14,6 +14,7 @@ export async function startServerCommand(
       statusCode: number;
       requestBody?: any;
       responseBody?: any;
+      requestHeaders?: Record<string, any>;
     },
   ) => void,
   isRestart: boolean = false,
@@ -48,13 +49,21 @@ export async function startServerCommand(
     delay,
     errorRate,
     strictValidation,
-    onRequest: (method, path, statusCode, requestBody, responseBody) => {
+    onRequest: (
+      method,
+      path,
+      statusCode,
+      requestBody,
+      responseBody,
+      requestHeaders,
+    ) => {
       onStarted?.(server, port, {
         method,
         path,
         statusCode,
         requestBody,
         responseBody,
+        requestHeaders,
       });
       void vscode.commands.executeCommand("setContext", "mocknest.lastRequest", {
         method,

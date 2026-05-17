@@ -2,12 +2,17 @@ import { faker } from "@faker-js/faker";
 import { OpenAPIV3 } from "openapi-types";
 
 // Recursively maps a schema tree into representative fake payloads.
-export function generateFakeData(schema: OpenAPIV3.SchemaObject | any): any {
+export function generateFakeData(
+  schema: OpenAPIV3.SchemaObject | any,
+  context?: Record<string, any>,
+): any {
   if (!schema) return {};
 
   if (schema.type === "array") {
     const count = faker.number.int({ min: 2, max: 5 });
-    return Array.from({ length: count }, () => generateFakeData(schema.items));
+    return Array.from({ length: count }, () =>
+      generateFakeData(schema.items, context),
+    );
   }
 
   if (schema.type === "object" || schema.properties) {
@@ -16,20 +21,37 @@ export function generateFakeData(schema: OpenAPIV3.SchemaObject | any): any {
       result[key] = generateValueFromField(
         key,
         value as OpenAPIV3.SchemaObject,
+        context,
       );
     }
     return result;
   }
 
-  return generateValueFromField("value", schema);
+  return generateValueFromField("value", schema, context);
 }
 
 function generateValueFromField(
   fieldName: string,
   schema: OpenAPIV3.SchemaObject,
+  context?: Record<string, any>,
 ): any {
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
+
+  // Use dynamic values from request context if field name matches.
+  if (context && context[fieldName] !== undefined) {
+    const contextValue = context[fieldName];
+    // Basic type compatibility check to avoid putting strings in numbers, etc.
+    if (schema.type === "number" || schema.type === "integer") {
+      const num = Number(contextValue);
+      if (!isNaN(num)) return num;
+    } else if (schema.type === "boolean") {
+      if (contextValue === "true" || contextValue === true) return true;
+      if (contextValue === "false" || contextValue === false) return false;
+    } else if (schema.type === "string" || !schema.type) {
+      return String(contextValue);
+    }
+  }
 
   if (schema.enum && schema.enum.length > 0) {
     return schema.enum[Math.floor(Math.random() * schema.enum.length)];
