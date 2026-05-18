@@ -170,4 +170,62 @@ describe("fakeDataGenerator", () => {
     const result = generateFakeData(schema);
     expect(result).toMatch(/^[0-9]{3}-[A-Z]{3}$/);
   });
+
+  it("should handle allOf by merging schemas", () => {
+    const schema = {
+      allOf: [
+        {
+          type: "object",
+          properties: { id: { type: "string", format: "uuid" } },
+        },
+        { type: "object", properties: { name: { type: "string" } } },
+      ],
+    };
+    const result = generateFakeData(schema);
+    expect(result).toHaveProperty("id");
+    expect(result).toHaveProperty("name");
+    expect(result.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/,
+    );
+  });
+
+  it("should handle oneOf by picking one schema", () => {
+    const schema = {
+      oneOf: [
+        {
+          type: "object",
+          properties: {
+            type: { type: "string", example: "cat" },
+            meow: { type: "boolean" },
+          },
+        },
+        {
+          type: "object",
+          properties: {
+            type: { type: "string", example: "dog" },
+            bark: { type: "boolean" },
+          },
+        },
+      ],
+    };
+    const result = generateFakeData(schema);
+    if (result.type === "cat") {
+      expect(result).toHaveProperty("meow");
+    } else {
+      expect(result).toHaveProperty("bark");
+    }
+  });
+
+  it("should handle x-faker extension for custom generators", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        customEmail: { type: "string", "x-faker": "internet.email" },
+        fullName: { type: "string", "x-faker": "person.fullName" },
+      },
+    };
+    const result = generateFakeData(schema);
+    expect(result.customEmail).toContain("@");
+    expect(result.fullName).toContain(" ");
+  });
 });

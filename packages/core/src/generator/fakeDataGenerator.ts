@@ -8,6 +8,22 @@ export function generateFakeData(
 ): any {
   if (!schema) return {};
 
+  // Handle composition keywords
+  if (schema.allOf) {
+    return schema.allOf.reduce((acc: any, subSchema: any) => {
+      const generated = generateFakeData(subSchema, context);
+      return typeof generated === "object" && generated !== null
+        ? { ...acc, ...generated }
+        : generated;
+    }, {});
+  }
+
+  if (schema.oneOf || schema.anyOf) {
+    const list = schema.oneOf || schema.anyOf;
+    const selected = list[Math.floor(Math.random() * list.length)];
+    return generateFakeData(selected, context);
+  }
+
   if (schema.type === "array") {
     const min = schema.minItems ?? 2;
     const max = schema.maxItems ?? Math.max(min, 5);
@@ -39,6 +55,23 @@ function generateValueFromField(
 ): any {
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
+
+  // Support custom x-faker extension
+  const xFaker = (schema as any)["x-faker"];
+  if (xFaker && typeof xFaker === "string") {
+    try {
+      const parts = xFaker.split(".");
+      let generator: any = faker;
+      for (const part of parts) {
+        generator = generator[part];
+      }
+      if (typeof generator === "function") {
+        return generator();
+      }
+    } catch {
+      // Fallback
+    }
+  }
 
   // Use dynamic values from request context if field name matches.
   if (context && context[fieldName] !== undefined) {
