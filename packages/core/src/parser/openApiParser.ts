@@ -22,6 +22,7 @@ export interface ParsedRoute {
   path: string;
   summary?: string;
   description?: string;
+  tags?: string[];
   parameters?: ParsedParameter[];
   requestSchema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
   requestRequired?: boolean;
@@ -128,6 +129,7 @@ export async function parseOpenApiFile(
         path: path.replace(/\{(\w+)\}/g, ":$1"),
         summary: operation.summary,
         description: operation.description,
+        tags: operation.tags,
         parameters,
         requestSchema,
         requestRequired: requestBody?.required,

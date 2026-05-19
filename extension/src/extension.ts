@@ -165,11 +165,12 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand(
       "mocknest.openApiTester",
-      (item?: RouteItem) => {
+      (item?: any) => {
+        const isRoute = item instanceof RouteItem;
         ApiTesterPanel.open(
           context,
           routeTreeProvider,
-          item
+          isRoute
             ? {
                 method: item.route.method,
                 path: item.route.path,
@@ -181,7 +182,10 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand(
       "mocknest.openInBrowser",
-      async (item: RouteItem) => {
+      async (item: any) => {
+        if (!(item instanceof RouteItem)) {
+          return;
+        }
         const port = vscode.workspace
           .getConfiguration("mocknest")
           .get<number>("port", 3001);
