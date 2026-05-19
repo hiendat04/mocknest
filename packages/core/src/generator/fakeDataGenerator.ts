@@ -8,6 +8,11 @@ export function generateFakeData(
 ): any {
   if (!schema) return {};
 
+  // Randomly return null if nullable (10% chance)
+  if (schema.nullable && Math.random() < 0.1) {
+    return null;
+  }
+
   // Handle composition keywords
   if (schema.allOf) {
     return schema.allOf.reduce((acc: any, subSchema: any) => {
@@ -25,9 +30,20 @@ export function generateFakeData(
   }
 
   if (schema.type === "array") {
-    const min = schema.minItems ?? 2;
-    const max = schema.maxItems ?? Math.max(min, 5);
-    const count = faker.number.int({ min, max });
+    let count;
+    // Simple pagination support: look for limit-related parameters in context
+    const requestedLimit =
+      context?.limit || context?.per_page || context?.pageSize || context?.size;
+    const parsedLimit = parseInt(requestedLimit, 10);
+
+    if (!isNaN(parsedLimit) && parsedLimit >= 0) {
+      count = Math.min(parsedLimit, 50); // Safety cap to avoid huge payloads
+    } else {
+      const min = schema.minItems ?? 2;
+      const max = schema.maxItems ?? Math.max(min, 5);
+      count = faker.number.int({ min, max });
+    }
+
     return Array.from({ length: count }, () =>
       generateFakeData(schema.items, context),
     );
@@ -53,6 +69,7 @@ function generateValueFromField(
   schema: OpenAPIV3.SchemaObject,
   context?: Record<string, any>,
 ): any {
+  if (schema.nullable && Math.random() < 0.1) return null;
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
 

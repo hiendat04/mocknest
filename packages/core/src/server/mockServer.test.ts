@@ -246,4 +246,45 @@ describe("MockServer", () => {
     expect(body.page).toBe(5);
     expect(typeof body.name).toBe("string");
   });
+
+  it("should return named examples via x-mock-example header", async () => {
+    server = new MockServer({
+      port: 3008,
+      routes: [
+        {
+          method: "GET",
+          path: "/examples",
+          statusCode: 200,
+          responseExamples: {
+            standard: { id: 1, name: "Standard" },
+            premium: { id: 2, name: "Premium" },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    // 1. Request 'standard'
+    const res1 = await fetch("http://localhost:3008/examples", {
+      headers: { "x-mock-example": "standard" },
+    });
+    const body1: any = await res1.json();
+    expect(body1).toEqual({ id: 1, name: "Standard" });
+
+    // 2. Request 'premium'
+    const res2 = await fetch("http://localhost:3008/examples", {
+      headers: { "x-mock-example": "premium" },
+    });
+    const body2: any = await res2.json();
+    expect(body2).toEqual({ id: 2, name: "Premium" });
+
+    // 3. Request unknown -> fall back to fake (which is {} here as no schema)
+    const res3 = await fetch("http://localhost:3008/examples", {
+      headers: { "x-mock-example": "unknown" },
+    });
+    const body3: any = await res3.json();
+    expect(body3).toEqual({});
+  });
 });

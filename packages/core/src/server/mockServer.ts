@@ -70,6 +70,19 @@ export class MockServer {
           bestResponse?.headers ||
           (statusCode === route.statusCode ? route.responseHeaders : undefined);
 
+        const exampleKey = req.header("x-mock-example");
+        let exampleValue: any = undefined;
+        if (exampleKey) {
+          const examples =
+            bestResponse?.examples ||
+            (statusCode === route.statusCode
+              ? route.responseExamples
+              : undefined);
+          if (examples && examples[exampleKey] !== undefined) {
+            exampleValue = examples[exampleKey];
+          }
+        }
+
         const sendJson = (
           sCode: number,
           payload: unknown,
@@ -109,9 +122,12 @@ export class MockServer {
           }
         }
 
-        const fakeBody = responseSchema
-          ? generateFakeData(responseSchema, { ...req.query, ...req.params })
-          : {};
+        const fakeBody =
+          exampleValue !== undefined
+            ? exampleValue
+            : responseSchema
+              ? generateFakeData(responseSchema, { ...req.query, ...req.params })
+              : {};
 
         // Chaos mode (error rate)
         if (this.options.errorRate && this.options.errorRate > 0) {

@@ -14,6 +14,7 @@ export interface ParsedResponse {
   description?: string;
   schema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
   headers?: Record<string, string>;
+  examples?: Record<string, any>;
 }
 
 export interface ParsedRoute {
@@ -27,6 +28,7 @@ export interface ParsedRoute {
   responseSchema?: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject;
   responseDescription?: string;
   responseHeaders?: Record<string, string>;
+  responseExamples?: Record<string, any>;
   responses: ParsedResponse[];
   statusCode: number;
 }
@@ -62,6 +64,16 @@ export async function parseOpenApiFile(
         }
       }
 
+      const responseExamples: Record<string, any> = {};
+      const primaryExamples = response?.content?.["application/json"]?.examples;
+      if (primaryExamples) {
+        for (const [eName, eValue] of Object.entries(primaryExamples)) {
+          if (!isReferenceObject(eValue)) {
+            responseExamples[eName] = eValue.value;
+          }
+        }
+      }
+
       const allResponses: ParsedResponse[] = [];
       if (operation.responses) {
         for (const [code, resp] of Object.entries(operation.responses)) {
@@ -76,11 +88,22 @@ export async function parseOpenApiFile(
             }
           }
 
+          const examples: Record<string, any> = {};
+          const exampleMap = resp.content?.["application/json"]?.examples;
+          if (exampleMap) {
+            for (const [eName, eValue] of Object.entries(exampleMap)) {
+              if (!isReferenceObject(eValue)) {
+                examples[eName] = eValue.value;
+              }
+            }
+          }
+
           allResponses.push({
             statusCode: code,
             description: resp.description,
             schema: resp.content?.["application/json"]?.schema,
             headers: Object.keys(headers).length > 0 ? headers : undefined,
+            examples: Object.keys(examples).length > 0 ? examples : undefined,
           });
         }
       }
@@ -112,6 +135,8 @@ export async function parseOpenApiFile(
         responseDescription: response?.description,
         responseHeaders:
           Object.keys(responseHeaders).length > 0 ? responseHeaders : undefined,
+        responseExamples:
+          Object.keys(responseExamples).length > 0 ? responseExamples : undefined,
         responses: allResponses,
         statusCode,
       });

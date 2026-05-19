@@ -228,4 +228,16 @@ describe("fakeDataGenerator", () => {
     expect(result.customEmail).toContain("@");
     expect(result.fullName).toContain(" ");
   });
+
+  it("should respect pagination limit from context", () => {
+    const schema = {
+      type: "array",
+      items: { type: "string" },
+    };
+    const result = generateFakeData(schema, { limit: 10 });
+    expect(result).toHaveLength(10);
+
+    const result2 = generateFakeData(schema, { per_page: 3 });
+    expect(result2).toHaveLength(3);
+  });
 });

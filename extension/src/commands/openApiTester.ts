@@ -17,6 +17,7 @@ interface ResponseOption {
   statusCode: string;
   description?: string;
   example?: unknown;
+  examples?: Record<string, any>;
 }
 
 interface RouteOption {
@@ -31,6 +32,7 @@ interface RouteOption {
   parameters: RouteParameterInfo[];
   requestExample?: unknown;
   responseExample?: unknown;
+  responseExamples?: Record<string, any>;
   responses: ResponseOption[];
 }
 
@@ -470,6 +472,13 @@ export class ApiTesterPanel {
         </div>
       </div>
 
+      <div class="row-1" style="margin-top: 10px;">
+        <div>
+          <div class="label">Mock Example Key</div>
+          <input id="mockExampleKey" type="text" placeholder="e.g. standard" />
+        </div>
+      </div>
+
       <div class="actions" style="margin-top: 10px;">
         <button id="sendButton">Send Request</button>
         <button id="refreshButton" class="secondary">Refresh Routes</button>
@@ -538,6 +547,7 @@ export class ApiTesterPanel {
     const bodyInput = document.getElementById("body");
     const mockDelayInput = document.getElementById("mockDelay");
     const mockStatusCodeInput = document.getElementById("mockStatusCode");
+    const mockExampleKeyInput = document.getElementById("mockExampleKey");
     const sendButton = document.getElementById("sendButton");
     const refreshButton = document.getElementById("refreshButton");
 
@@ -576,6 +586,10 @@ export class ApiTesterPanel {
       renderRouteInsight(getSelectedRoute());
     });
 
+    mockExampleKeyInput.addEventListener("input", () => {
+      renderRouteInsight(getSelectedRoute());
+    });
+
     sendButton.addEventListener("click", () => {
       let customHeaders = {};
       try {
@@ -592,6 +606,9 @@ export class ApiTesterPanel {
       }
       if (mockStatusCodeInput.value) {
         customHeaders["x-mock-response-code"] = mockStatusCodeInput.value;
+      }
+      if (mockExampleKeyInput.value) {
+        customHeaders["x-mock-example"] = mockExampleKeyInput.value;
       }
 
       const payload = {
@@ -782,9 +799,18 @@ export class ApiTesterPanel {
         requestExample.textContent = "(No request body schema)";
       }
 
-      const resExample = bestResponse
-        ? bestResponse.example
-        : route.responseExample;
+      const resExample =
+        bestResponse &&
+        bestResponse.examples &&
+        bestResponse.examples[mockExampleKeyInput.value]
+          ? bestResponse.examples[mockExampleKeyInput.value]
+          : route.responseExamples &&
+              route.responseExamples[mockExampleKeyInput.value]
+            ? route.responseExamples[mockExampleKeyInput.value]
+            : bestResponse
+              ? bestResponse.example
+              : route.responseExample;
+
       if (resExample) {
         responseExample.innerHTML = syntaxHighlight(
           JSON.stringify(resExample, null, 2),
@@ -951,10 +977,12 @@ function createRouteOption(route: ParsedRoute): RouteOption {
     })),
     requestExample: createExample(route.requestSchema),
     responseExample: createExample(route.responseSchema),
+    responseExamples: route.responseExamples,
     responses: (route.responses || []).map((resp) => ({
       statusCode: resp.statusCode,
       description: resp.description,
       example: createExample(resp.schema),
+      examples: resp.examples,
     })),
   };
 }
