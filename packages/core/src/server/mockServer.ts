@@ -52,14 +52,14 @@ export class MockServer {
         const headerDelay = req.header("x-mock-delay");
         const delay = headerDelay
           ? parseInt(headerDelay, 10)
-          : (this.options.delay ?? 20);
+          : (route.mockDelay ?? this.options.delay ?? 20);
 
         const headerStatusCode =
           req.header("x-mock-response-code") ||
           req.header("x-mock-status-code");
         const statusCode = headerStatusCode
           ? parseInt(headerStatusCode, 10)
-          : route.statusCode;
+          : (route.mockStatusCode ?? route.statusCode);
 
         const bestResponse = findBestResponse(route, statusCode);
 
@@ -128,6 +128,18 @@ export class MockServer {
             : responseSchema
               ? generateFakeData(responseSchema, { ...req.query, ...req.params })
               : {};
+
+        if (this.options.strictValidation && responseSchema && !isReferenceObject(responseSchema)) {
+          const responseErrors = validateSchemaValue(fakeBody, responseSchema, "response");
+          if (responseErrors.length > 0) {
+            console.error(
+              `[MockNest] Generated response failed validation for ${route.method} ${req.path}:`,
+              responseErrors,
+            );
+            // We still send the response, but we could optionally add a header or log it specially.
+            // For now, let's just log it to console.
+          }
+        }
 
         // Chaos mode (error rate)
         if (this.options.errorRate && this.options.errorRate > 0) {

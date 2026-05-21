@@ -70,6 +70,42 @@ export function activate(context: vscode.ExtensionContext) {
 
   updateStatusBar(false);
 
+  // Attempt auto-discovery if no spec is selected.
+  void (async () => {
+    const selectedSpec = context.workspaceState.get<string>(SPEC_PATH_STATE_KEY);
+    if (!selectedSpec) {
+      const files = await vscode.workspace.findFiles(
+        "**/{openapi,swagger,api-spec}.{yaml,yml,json}",
+        "**/node_modules/**",
+      );
+
+      if (files.length === 1) {
+        const discovered = files[0].fsPath;
+        try {
+          const routes = await parseOpenApiFile(discovered);
+          await context.workspaceState.update(SPEC_PATH_STATE_KEY, discovered);
+          routeTreeProvider.refresh(routes);
+          ApiTesterPanel.syncRoutes(routeTreeProvider);
+          const relativePath = vscode.workspace.asRelativePath(discovered);
+          vscode.window.showInformationMessage(
+            `MockNest: Auto-selected OpenAPI spec found at ${relativePath}`,
+          );
+        } catch {
+          // Silent failure for auto-discovery
+        }
+      }
+    } else {
+      // If we have a persisted spec, load it into the tree provider.
+      try {
+        const routes = await parseOpenApiFile(selectedSpec);
+        routeTreeProvider.refresh(routes);
+        ApiTesterPanel.syncRoutes(routeTreeProvider);
+      } catch {
+        // Persisted spec might be invalid or moved.
+      }
+    }
+  })();
+
   context.subscriptions.push(
     vscode.commands.registerCommand(
       "mocknest.startServer",
@@ -494,7 +530,10 @@ async function selectSpecCommand(
   context: vscode.ExtensionContext,
   provider: RouteTreeProvider,
 ): Promise<boolean> {
-  const files = await vscode.workspace.findFiles("**/openapi.{yaml,yml,json}");
+  const files = await vscode.workspace.findFiles(
+    "**/{openapi,swagger,api-spec}.{yaml,yml,json}",
+    "**/node_modules/**",
+  );
   if (files.length === 0) {
     vscode.window.showErrorMessage("No OpenAPI spec file found in workspace.");
     return false;

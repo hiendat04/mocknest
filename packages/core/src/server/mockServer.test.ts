@@ -287,4 +287,36 @@ describe("MockServer", () => {
     const body3: any = await res3.json();
     expect(body3).toEqual({});
   });
+
+  it("should respect mockDelay and mockStatusCode from ParsedRoute", async () => {
+    server = new MockServer({
+      port: 3009,
+      routes: [
+        {
+          method: "GET",
+          path: "/route-extensions",
+          statusCode: 200,
+          mockDelay: 100,
+          mockStatusCode: 202,
+          responses: [
+            {
+              statusCode: "202",
+              schema: { type: "object", properties: { status: { type: "string" } } },
+            },
+          ],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const start = Date.now();
+    const response = await fetch("http://localhost:3009/route-extensions");
+    const duration = Date.now() - start;
+
+    expect(response.status).toBe(202);
+    expect(duration).toBeGreaterThanOrEqual(100);
+    const body: any = await response.json();
+    expect(body).toHaveProperty("status");
+  });
 });

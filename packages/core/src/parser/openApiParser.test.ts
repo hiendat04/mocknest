@@ -34,4 +34,36 @@ paths:
       }
     }
   });
+
+  it("should parse x-mock-delay and x-mock-status extensions", async () => {
+    const spec = `
+openapi: 3.0.0
+info:
+  title: Test Extensions API
+  version: 1.0.0
+paths:
+  /extensions:
+    post:
+      x-mock-delay: 500
+      x-mock-status: 201
+      responses:
+        '200':
+          description: OK
+        '201':
+          description: Created
+`;
+    const tempFile = path.join(__dirname, "temp-extensions.yaml");
+    fs.writeFileSync(tempFile, spec);
+
+    try {
+      const routes = await parseOpenApiFile(tempFile);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].mockDelay).toBe(500);
+      expect(routes[0].mockStatusCode).toBe(201);
+    } finally {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    }
+  });
 });

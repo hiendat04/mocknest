@@ -32,6 +32,8 @@ export interface ParsedRoute {
   responseExamples?: Record<string, any>;
   responses: ParsedResponse[];
   statusCode: number;
+  mockDelay?: number;
+  mockStatusCode?: number;
 }
 
 export async function parseOpenApiFile(
@@ -52,6 +54,9 @@ export async function parseOpenApiFile(
         | OpenAPIV3.OperationObject
         | undefined;
       if (!operation) continue;
+
+      const mockDelay = (operation as any)["x-mock-delay"];
+      const mockStatusCode = (operation as any)["x-mock-status"];
 
       const { statusCode, response } = pickSuccessResponse(operation.responses);
       const responseSchema = response?.content?.["application/json"]?.schema;
@@ -141,6 +146,8 @@ export async function parseOpenApiFile(
           Object.keys(responseExamples).length > 0 ? responseExamples : undefined,
         responses: allResponses,
         statusCode,
+        mockDelay: typeof mockDelay === "number" ? mockDelay : undefined,
+        mockStatusCode: typeof mockStatusCode === "number" ? mockStatusCode : undefined,
       });
     }
   }
