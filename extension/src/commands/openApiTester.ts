@@ -8,7 +8,7 @@ import { RouteTreeProvider } from "../providers/routeTreeProvider";
 
 interface RouteParameterInfo {
   name: string;
-  in: "path" | "query";
+  in: "path" | "query" | "header" | "cookie";
   required: boolean;
   type: string;
 }

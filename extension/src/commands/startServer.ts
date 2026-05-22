@@ -42,6 +42,7 @@ export async function startServerCommand(
   const delay = config.get<number>("delay", 20);
   const errorRate = config.get<number>("errorRate", 0);
   const strictValidation = config.get<boolean>("strictValidation", false);
+  const stateful = config.get<boolean>("stateful", false);
 
   const server = new MockServer({
     port,
@@ -49,6 +50,7 @@ export async function startServerCommand(
     delay,
     errorRate,
     strictValidation,
+    stateful,
     onRequest: (
       method,
       path,
@@ -95,7 +97,10 @@ async function resolveSpecPath(
     return configured;
   }
 
-  const files = await vscode.workspace.findFiles("**/openapi.{yaml,yml,json}");
+  const files = await vscode.workspace.findFiles(
+    "**/{openapi,swagger,api-spec}.{yaml,yml,json}",
+    "**/node_modules/**",
+  );
   if (files.length === 0) {
     return undefined;
   }

@@ -41,6 +41,7 @@ export class ChaosControlProvider
     const delay = config.get<number>("delay", DEFAULT_DELAY_MS);
     const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
     const strictValidation = config.get<boolean>("strictValidation", false);
+    const stateful = config.get<boolean>("stateful", false);
     const isChaosMode = delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE;
 
     return [
@@ -51,6 +52,14 @@ export class ChaosControlProvider
         "mocknest.chaosToggle",
         "Toggle chaos defaults for latency and failure rate",
         isChaosMode ? "flame" : "shield",
+      ),
+      new ChaosControlItem(
+        "Stateful Mode",
+        stateful ? "ON" : "OFF",
+        "mocknest.toggleStatefulMode",
+        "mocknest.statefulToggle",
+        "Toggle persistent CRUD state for mock resources",
+        stateful ? "database" : "beaker",
       ),
       new ChaosControlItem(
         "Latency",
@@ -77,11 +86,11 @@ export class ChaosControlProvider
         strictValidation ? "shield" : "circle-slash",
       ),
       new ChaosControlItem(
-        "Reset Chaos",
+        "Reset Controls",
         "Restore defaults",
         "mocknest.resetChaosSettings",
         "mocknest.chaosReset",
-        "Reset latency and failure rate",
+        "Reset latency, failure rate, and other controls",
         "discard",
       ),
     ];

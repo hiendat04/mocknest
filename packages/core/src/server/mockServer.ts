@@ -4,6 +4,7 @@ import { Server } from "http";
 import { OpenAPIV3 } from "openapi-types";
 import { ParsedRoute, ParsedResponse } from "../parser/openApiParser";
 import { generateFakeData } from "../generator/fakeDataGenerator";
+import { DataStore } from "./dataStore";
 
 export interface MockServerOptions {
   port: number;
@@ -19,16 +20,19 @@ export interface MockServerOptions {
   delay?: number;
   errorRate?: number;
   strictValidation?: boolean;
+  stateful?: boolean;
 }
 
 export class MockServer {
   private app: Express;
   private server: Server | null = null;
+  private dataStore: DataStore;
 
   constructor(private options: MockServerOptions) {
     this.app = express();
     this.app.use(cors());
     this.app.use(express.json());
+    this.dataStore = new DataStore();
     this.registerRoutes();
   }
 
@@ -83,6 +87,67 @@ export class MockServer {
           }
         }
 
+        let fakeBody: any = undefined;
+        const pathInfo = this.options.stateful ? parsePathInfo(route.path) : undefined;
+
+        if (this.options.stateful && pathInfo && exampleValue === undefined) {
+          const collection = pathInfo.collection;
+          const idParam = (pathInfo as any).paramName;
+
+          if (pathInfo.type === "collection") {
+            if (route.method === "GET") {
+              const data = this.dataStore.getCollection(collection);
+              if (data.length === 0 && responseSchema) {
+                // Initial seed
+                const seed = generateFakeData(responseSchema, { ...req.query });
+                const seedArray = Array.isArray(seed) ? seed : [seed];
+                this.dataStore.setCollection(collection, seedArray);
+                fakeBody = seedArray;
+              } else {
+                fakeBody = data;
+              }
+            } else if (route.method === "POST") {
+              const newItem = req.body && Object.keys(req.body).length > 0
+                ? req.body
+                : responseSchema ? generateFakeData(responseSchema) : {};
+              
+              // Ensure it has an ID if it's an object
+              if (isPlainObject(newItem) && !newItem.id && !newItem._id) {
+                newItem.id = Math.random().toString(36).substring(7);
+              }
+              this.dataStore.addItem(collection, newItem);
+              fakeBody = newItem;
+            }
+          } else if (pathInfo.type === "item" && idParam) {
+            const idValue = req.params[idParam];
+            const idField = "id"; // Defaulting to 'id'
+
+            if (route.method === "GET") {
+              fakeBody = this.dataStore.findItem(collection, idField, idValue);
+              if (!fakeBody && responseSchema) {
+                fakeBody = generateFakeData(responseSchema, { ...req.query, ...req.params });
+                if (isPlainObject(fakeBody)) {
+                  fakeBody[idField] = idValue;
+                  this.dataStore.addItem(collection, fakeBody);
+                }
+              }
+            } else if (route.method === "PUT" || route.method === "PATCH") {
+              const updates = req.body || {};
+              const success = this.dataStore.updateItem(collection, idField, idValue, updates);
+              if (success) {
+                fakeBody = this.dataStore.findItem(collection, idField, idValue);
+              } else if (responseSchema) {
+                // Create if not exists for PUT/PATCH (upsert-ish)
+                fakeBody = { ...generateFakeData(responseSchema), ...updates, [idField]: idValue };
+                this.dataStore.addItem(collection, fakeBody);
+              }
+            } else if (route.method === "DELETE") {
+              this.dataStore.deleteItem(collection, idField, idValue);
+              fakeBody = { message: "Deleted successfully" };
+            }
+          }
+        }
+
         const sendJson = (
           sCode: number,
           payload: unknown,
@@ -122,12 +187,14 @@ export class MockServer {
           }
         }
 
-        const fakeBody =
-          exampleValue !== undefined
-            ? exampleValue
-            : responseSchema
-              ? generateFakeData(responseSchema, { ...req.query, ...req.params })
-              : {};
+        if (fakeBody === undefined) {
+          fakeBody =
+            exampleValue !== undefined
+              ? exampleValue
+              : responseSchema
+                ? generateFakeData(responseSchema, { ...req.query, ...req.params })
+                : {};
+        }
 
         if (this.options.strictValidation && responseSchema && !isReferenceObject(responseSchema)) {
           const responseErrors = validateSchemaValue(fakeBody, responseSchema, "response");
@@ -517,4 +584,26 @@ function findBestResponse(
   if (match) return match;
 
   return undefined;
+}
+
+function parsePathInfo(path: string) {
+  const segments = path.split("/").filter(Boolean);
+  if (segments.length === 0) return undefined;
+
+  const lastSegment = segments[segments.length - 1];
+  const isParam = lastSegment.startsWith(":");
+
+  if (isParam) {
+    if (segments.length < 2) return undefined;
+    return {
+      type: "item" as const,
+      collection: segments[segments.length - 2],
+      paramName: lastSegment.substring(1),
+    };
+  } else {
+    return {
+      type: "collection" as const,
+      collection: lastSegment,
+    };
+  }
 }

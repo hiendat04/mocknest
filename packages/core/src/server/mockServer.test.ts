@@ -20,6 +20,7 @@ describe("MockServer", () => {
           path: "/test",
           statusCode: 200,
           responseSchema: { type: "object", properties: { msg: { type: "string" } } },
+          responses: [],
         },
       ],
     });
@@ -40,6 +41,7 @@ describe("MockServer", () => {
           method: "GET",
           path: "/test",
           statusCode: 200,
+          responses: [],
         },
       ],
     });
@@ -60,6 +62,7 @@ describe("MockServer", () => {
           method: "GET",
           path: "/test",
           statusCode: 200,
+          responses: [],
         },
       ],
       delay: 200,
@@ -144,6 +147,7 @@ describe("MockServer", () => {
             type: "object",
             properties: { created: { type: "boolean" } },
           },
+          responses: [],
         },
       ],
       onRequest: (_m, _p, _s, reqBody, resBody, reqHeaders) => {
