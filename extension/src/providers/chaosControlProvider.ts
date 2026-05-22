@@ -42,6 +42,7 @@ export class ChaosControlProvider
     const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
     const strictValidation = config.get<boolean>("strictValidation", false);
     const stateful = config.get<boolean>("stateful", false);
+    const proxyTarget = config.get<string>("proxyTarget", "");
     const isChaosMode = delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE;
 
     return [
@@ -60,6 +61,14 @@ export class ChaosControlProvider
         "mocknest.statefulToggle",
         "Toggle persistent CRUD state for mock resources",
         stateful ? "database" : "beaker",
+      ),
+      new ChaosControlItem(
+        "Proxy Fallback",
+        proxyTarget ? (proxyTarget.length > 20 ? proxyTarget.substring(0, 17) + "..." : proxyTarget) : "OFF",
+        "mocknest.setProxyTarget",
+        "mocknest.proxyTarget",
+        proxyTarget ? `Forwarding unhandled to ${proxyTarget}` : "Forward unhandled requests to a real backend",
+        "remote",
       ),
       new ChaosControlItem(
         "Latency",

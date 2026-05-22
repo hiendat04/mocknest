@@ -9,6 +9,8 @@ import { DataStore } from "./dataStore";
 export interface MockServerOptions {
   port: number;
   routes: ParsedRoute[];
+  api?: OpenAPIV3.Document;
+  proxyTarget?: string;
   onRequest?: (
     method: string,
     path: string,
@@ -33,7 +35,61 @@ export class MockServer {
     this.app.use(cors());
     this.app.use(express.json());
     this.dataStore = new DataStore();
+    this.registerInternalRoutes();
     this.registerRoutes();
+  }
+
+  private registerInternalRoutes() {
+    if (this.options.api) {
+      this.app.get("/__mocknest/spec.json", (req, res) => {
+        res.json(this.options.api);
+      });
+
+      this.app.get("/__mocknest/docs", (req, res) => {
+        res.send(this.getSwaggerUiHtml());
+      });
+
+      console.log(`[MockNest] API Explorer available at http://localhost:${this.options.port}/__mocknest/docs`);
+    }
+  }
+
+  private getSwaggerUiHtml(): string {
+    return `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>MockNest API Explorer</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css" >
+  <style>
+    html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin:0; background: #fafafa; }
+  </style>
+</head>
+<body>
+  <div id="swagger-ui"></div>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"> </script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"> </script>
+  <script>
+    window.onload = function() {
+      window.ui = SwaggerUIBundle({
+        url: "/__mocknest/spec.json",
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout"
+      });
+    };
+  </script>
+</body>
+</html>`;
   }
 
   private registerRoutes() {
@@ -227,7 +283,36 @@ export class MockServer {
       });
     }
 
-    this.app.use((req: Request, res: Response) => {
+    this.app.use(async (req: Request, res: Response) => {
+      if (this.options.proxyTarget) {
+        const targetUrl = `${this.options.proxyTarget.replace(/\/+$/, "")}${req.url}`;
+        console.log(`[MockNest] Proxying to ${targetUrl}`);
+
+        try {
+          const proxyRes = await fetch(targetUrl, {
+            method: req.method,
+            headers: req.headers as any,
+            body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
+          });
+
+          const data = await proxyRes.text();
+          
+          // Copy headers back
+          proxyRes.headers.forEach((value, key) => {
+            if (!["content-encoding", "transfer-encoding"].includes(key.toLowerCase())) {
+              res.setHeader(key, value);
+            }
+          });
+
+          res.status(proxyRes.status).send(data);
+          return;
+        } catch (error) {
+          console.error(`[MockNest] Proxy error:`, error);
+          res.status(502).json({ error: "Proxy error", details: String(error) });
+          return;
+        }
+      }
+
       console.warn(`[MockNest] 404 Not Found: ${req.method} ${req.path}`);
       res.status(404).json({ error: "Route not mocked", path: req.path });
     });

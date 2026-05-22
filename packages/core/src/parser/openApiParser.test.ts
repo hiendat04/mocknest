@@ -25,7 +25,7 @@ paths:
     fs.writeFileSync(tempFile, spec);
 
     try {
-      const routes = await parseOpenApiFile(tempFile);
+      const { routes } = await parseOpenApiFile(tempFile);
       expect(routes).toHaveLength(1);
       expect(routes[0].tags).toEqual(["user", "profile"]);
     } finally {
@@ -56,7 +56,7 @@ paths:
     fs.writeFileSync(tempFile, spec);
 
     try {
-      const routes = await parseOpenApiFile(tempFile);
+      const { routes } = await parseOpenApiFile(tempFile);
       expect(routes).toHaveLength(1);
       expect(routes[0].mockDelay).toBe(500);
       expect(routes[0].mockStatusCode).toBe(201);

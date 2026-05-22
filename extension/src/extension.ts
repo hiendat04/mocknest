@@ -82,7 +82,7 @@ export function activate(context: vscode.ExtensionContext) {
       if (files.length === 1) {
         const discovered = files[0].fsPath;
         try {
-          const routes = await parseOpenApiFile(discovered);
+          const { routes } = await parseOpenApiFile(discovered);
           await context.workspaceState.update(SPEC_PATH_STATE_KEY, discovered);
           routeTreeProvider.refresh(routes);
           ApiTesterPanel.syncRoutes(routeTreeProvider);
@@ -97,7 +97,7 @@ export function activate(context: vscode.ExtensionContext) {
     } else {
       // If we have a persisted spec, load it into the tree provider.
       try {
-        const routes = await parseOpenApiFile(selectedSpec);
+        const { routes } = await parseOpenApiFile(selectedSpec);
         routeTreeProvider.refresh(routes);
         ApiTesterPanel.syncRoutes(routeTreeProvider);
       } catch {
@@ -405,6 +405,28 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }),
 
+    vscode.commands.registerCommand("mocknest.setProxyTarget", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<string>("proxyTarget", "");
+
+      const input = await vscode.window.showInputBox({
+        title: "Set Proxy Fallback Target",
+        prompt: "Base URL to forward unhandled requests to (e.g. http://api.staging.com)",
+        value: current,
+        placeHolder: "http://localhost:8080",
+      });
+
+      if (input === undefined) {
+        return;
+      }
+
+      await config.update(
+        "proxyTarget",
+        input.trim(),
+        vscode.ConfigurationTarget.Workspace,
+      );
+    }),
+
     vscode.commands.registerCommand(
       "mocknest.openRequestLogEntry",
       async (item: RequestLogItem) => {
@@ -512,7 +534,8 @@ export function activate(context: vscode.ExtensionContext) {
         e.affectsConfiguration("mocknest.delay") ||
         e.affectsConfiguration("mocknest.errorRate") ||
         e.affectsConfiguration("mocknest.strictValidation") ||
-        e.affectsConfiguration("mocknest.stateful")
+        e.affectsConfiguration("mocknest.stateful") ||
+        e.affectsConfiguration("mocknest.proxyTarget")
       ) {
         chaosControlProvider.refresh();
         if (mockServer?.isRunning()) {
@@ -563,7 +586,7 @@ async function selectSpecCommand(
   }
 
   try {
-    const routes = await parseOpenApiFile(picked);
+    const { routes } = await parseOpenApiFile(picked);
     await context.workspaceState.update(SPEC_PATH_STATE_KEY, picked);
     provider.refresh(routes);
     ApiTesterPanel.syncRoutes(provider);

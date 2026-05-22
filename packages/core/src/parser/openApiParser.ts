@@ -36,9 +36,14 @@ export interface ParsedRoute {
   mockStatusCode?: number;
 }
 
+export interface ParseResult {
+  routes: ParsedRoute[];
+  api: OpenAPIV3.Document;
+}
+
 export async function parseOpenApiFile(
   filePath: string,
-): Promise<ParsedRoute[]> {
+): Promise<ParseResult> {
   // Dereference upfront so downstream logic can read concrete schemas.
   const api = (await SwaggerParser.dereference(filePath)) as OpenAPIV3.Document;
 
@@ -152,7 +157,7 @@ export async function parseOpenApiFile(
     }
   }
 
-  return routes;
+  return { routes, api };
 }
 
 function pickSuccessResponse(

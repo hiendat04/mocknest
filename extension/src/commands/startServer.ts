@@ -27,16 +27,18 @@ export async function startServerCommand(
 
   const config = vscode.workspace.getConfiguration("mocknest");
   const port = config.get<number>("port", 3001);
+  const proxyTarget = config.get<string>("proxyTarget", "");
 
-  let routes: ParsedRoute[];
+  let parseResult: { routes: ParsedRoute[]; api: any };
   try {
-    routes = await parseOpenApiFile(specPath);
+    parseResult = await parseOpenApiFile(specPath);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(`Failed to parse OpenAPI spec: ${message}`);
     return;
   }
 
+  const { routes, api } = parseResult;
   routeTreeProvider.refresh(routes);
 
   const delay = config.get<number>("delay", 20);
@@ -47,6 +49,8 @@ export async function startServerCommand(
   const server = new MockServer({
     port,
     routes,
+    api,
+    proxyTarget: proxyTarget || undefined,
     delay,
     errorRate,
     strictValidation,
