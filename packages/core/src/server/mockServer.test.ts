@@ -292,6 +292,44 @@ describe("MockServer", () => {
     expect(body3).toEqual({});
   });
 
+  it("should return deterministic responses when enabled", async () => {
+    server = new MockServer({
+      port: 3012,
+      deterministic: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/deterministic",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              name: { type: "string" },
+              email: { type: "string" },
+            },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const headers = { "X-Test-Header": "same-input" };
+    const res1 = await fetch("http://localhost:3012/deterministic?user=1", {
+      headers,
+    });
+    const body1: any = await res1.json();
+
+    const res2 = await fetch("http://localhost:3012/deterministic?user=1", {
+      headers,
+    });
+    const body2: any = await res2.json();
+
+    expect(body1).toEqual(body2);
+  });
+
   it("should respect mockDelay and mockStatusCode from ParsedRoute", async () => {
     server = new MockServer({
       port: 3009,

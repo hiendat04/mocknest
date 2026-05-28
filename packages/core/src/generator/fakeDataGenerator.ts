@@ -1,22 +1,36 @@
-import { faker } from "@faker-js/faker";
+import { faker, Faker } from "@faker-js/faker";
 import { OpenAPIV3 } from "openapi-types";
+
+export interface FakeDataOptions {
+  random?: () => number;
+  faker?: Faker;
+}
 
 // Recursively maps a schema tree into representative fake payloads.
 export function generateFakeData(
   schema: OpenAPIV3.SchemaObject | any,
   context?: Record<string, any>,
+  options?: FakeDataOptions,
 ): any {
   if (!schema) return {};
 
+  const rng = options?.random ?? Math.random;
+  const fakerInstance = options?.faker ?? faker;
+
+  const resolvedType = resolveSchemaType(schema, rng, fakerInstance);
+  if (resolvedType === "null") {
+    return null;
+  }
+
   // Randomly return null if nullable (10% chance)
-  if (schema.nullable && Math.random() < 0.1) {
+  if (schema.nullable && rng() < 0.1) {
     return null;
   }
 
   // Handle composition keywords
   if (schema.allOf) {
     return schema.allOf.reduce((acc: any, subSchema: any) => {
-      const generated = generateFakeData(subSchema, context);
+      const generated = generateFakeData(subSchema, context, options);
       return typeof generated === "object" && generated !== null
         ? { ...acc, ...generated }
         : generated;
@@ -25,11 +39,11 @@ export function generateFakeData(
 
   if (schema.oneOf || schema.anyOf) {
     const list = schema.oneOf || schema.anyOf;
-    const selected = list[Math.floor(Math.random() * list.length)];
-    return generateFakeData(selected, context);
+    const selected = list[Math.floor(rng() * list.length)];
+    return generateFakeData(selected, context, options);
   }
 
-  if (schema.type === "array") {
+  if (resolvedType === "array") {
     let count;
     // Simple pagination support: look for limit-related parameters in context
     const requestedLimit =
@@ -41,35 +55,78 @@ export function generateFakeData(
     } else {
       const min = schema.minItems ?? 2;
       const max = schema.maxItems ?? Math.max(min, 5);
-      count = faker.number.int({ min, max });
+      count = fakerInstance.number.int({ min, max });
     }
 
     return Array.from({ length: count }, () =>
-      generateFakeData(schema.items, context),
+      generateFakeData(schema.items, context, options),
     );
   }
 
-  if (schema.type === "object" || schema.properties) {
+  if (resolvedType === "object" || schema.properties) {
     const result: Record<string, any> = {};
-    for (const [key, value] of Object.entries(schema.properties || {})) {
+    const propertyEntries = Object.entries(schema.properties || {});
+    for (const [key, value] of propertyEntries) {
+      const propSchema = value as OpenAPIV3.SchemaObject;
+      
+      // Respect writeOnly: true by skipping it in responses.
+      if (propSchema.writeOnly === true) {
+        continue;
+      }
+
       result[key] = generateValueFromField(
         key,
-        value as OpenAPIV3.SchemaObject,
+        propSchema,
         context,
+        rng,
+        fakerInstance,
       );
+    }
+
+    const additionalSchema = schema.additionalProperties;
+    if (additionalSchema) {
+      const propCount = propertyEntries.length;
+      const minAdditional = Math.max(
+        0,
+        (schema.minProperties ?? propCount) - propCount,
+      );
+      const maxAdditional = schema.maxProperties !== undefined
+        ? Math.max(minAdditional, schema.maxProperties - propCount)
+        : Math.max(minAdditional, 3);
+      const additionalCount = fakerInstance.number.int({
+        min: minAdditional,
+        max: maxAdditional,
+      });
+      const additionalValueSchema =
+        additionalSchema === true ? {} : additionalSchema;
+
+      let counter = 1;
+      while (Object.keys(result).length < propCount + additionalCount) {
+        const key = `extraField${counter}`;
+        counter += 1;
+        if (result[key] !== undefined) continue;
+        result[key] = generateFakeData(additionalValueSchema, context, options);
+      }
     }
     return result;
   }
 
-  return generateValueFromField("value", schema, context);
+  return generateValueFromField("value", schema, context, rng, fakerInstance);
 }
 
 function generateValueFromField(
   fieldName: string,
   schema: OpenAPIV3.SchemaObject,
   context?: Record<string, any>,
+  rng: () => number = Math.random,
+  fakerInstance: Faker = faker,
 ): any {
-  if (schema.nullable && Math.random() < 0.1) return null;
+  const resolvedType = resolveSchemaType(schema, rng, fakerInstance);
+  if (resolvedType === "null") return null;
+  if (schema.nullable && rng() < 0.1) return null;
+  if (schema.const !== undefined) return schema.const;
+  if (Array.isArray(schema.examples) && schema.examples.length > 0)
+    return schema.examples[0];
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
 
@@ -78,7 +135,7 @@ function generateValueFromField(
   if (xFaker && typeof xFaker === "string") {
     try {
       const parts = xFaker.split(".");
-      let generator: any = faker;
+      let generator: any = fakerInstance;
       for (const part of parts) {
         generator = generator[part];
       }
@@ -94,117 +151,137 @@ function generateValueFromField(
   if (context && context[fieldName] !== undefined) {
     const contextValue = context[fieldName];
     // Basic type compatibility check to avoid putting strings in numbers, etc.
-    if (schema.type === "number" || schema.type === "integer") {
+    if (resolvedType === "number" || resolvedType === "integer") {
       const num = Number(contextValue);
       if (!isNaN(num)) return num;
-    } else if (schema.type === "boolean") {
+    } else if (resolvedType === "boolean") {
       if (contextValue === "true" || contextValue === true) return true;
       if (contextValue === "false" || contextValue === false) return false;
-    } else if (schema.type === "string" || !schema.type) {
+    } else if (resolvedType === "string" || !resolvedType) {
       return String(contextValue);
     }
   }
 
   if (schema.enum && schema.enum.length > 0) {
-    return schema.enum[Math.floor(Math.random() * schema.enum.length)];
+    return schema.enum[Math.floor(rng() * schema.enum.length)];
   }
 
   const name = fieldName.toLowerCase();
 
-  if (schema.type === "string" && schema.pattern) {
+  if (resolvedType === "string" && schema.pattern) {
     try {
       // Strip anchors if present, as Faker might include them literally.
       const pattern = schema.pattern.replace(/^\^/, "").replace(/\$$/, "");
-      return faker.helpers.fromRegExp(new RegExp(pattern));
+      return fakerInstance.helpers.fromRegExp(new RegExp(pattern));
     } catch {
       // Fallback if pattern is invalid
     }
   }
 
   // Prefer 'format' for strings when available.
-  if (schema.type === "string" && schema.format) {
+  if (resolvedType === "string" && schema.format) {
     switch (schema.format) {
       case "email":
-        return faker.internet.email();
+        return fakerInstance.internet.email();
       case "uuid":
-        return faker.string.uuid();
+        return fakerInstance.string.uuid();
       case "date-time":
-        return faker.date.recent().toISOString();
+        return fakerInstance.date.recent().toISOString();
       case "date":
-        return faker.date.recent().toISOString().split("T")[0];
+        return fakerInstance.date.recent().toISOString().split("T")[0];
       case "ipv4":
-        return faker.internet.ipv4();
+        return fakerInstance.internet.ipv4();
       case "ipv6":
-        return faker.internet.ipv6();
+        return fakerInstance.internet.ipv6();
       case "uri":
       case "url":
-        return faker.internet.url();
+        return fakerInstance.internet.url();
       case "password":
-        return faker.internet.password();
+        return fakerInstance.internet.password();
       case "hostname":
-        return faker.internet.domainName();
+        return fakerInstance.internet.domainName();
       case "byte":
-        return faker.string.alphanumeric(schema.minLength || 10);
+        return fakerInstance.string.alphanumeric(schema.minLength || 10);
       case "binary":
-        return faker.string.alphanumeric(schema.minLength || 20);
+        return fakerInstance.string.alphanumeric(schema.minLength || 20);
     }
   }
 
   // Prefer semantic values when field names hint at domain meaning.
-  if (name.includes("email")) return faker.internet.email();
+  if (name.includes("email")) return fakerInstance.internet.email();
   if (name.includes("name") && name.includes("first"))
-    return faker.person.firstName();
+    return fakerInstance.person.firstName();
   if (name.includes("name") && name.includes("last"))
-    return faker.person.lastName();
-  if (name.includes("name")) return faker.person.fullName();
-  if (name.includes("phone")) return faker.phone.number();
-  if (name.includes("address")) return faker.location.streetAddress();
-  if (name.includes("city")) return faker.location.city();
+    return fakerInstance.person.lastName();
+  if (name.includes("name")) return fakerInstance.person.fullName();
+  if (name.includes("phone")) return fakerInstance.phone.number();
+  if (name.includes("address")) return fakerInstance.location.streetAddress();
+  if (name.includes("city")) return fakerInstance.location.city();
   if (name.includes("zip") || name.includes("postcode"))
-    return faker.location.zipCode();
-  if (name.includes("country")) return faker.location.country();
-  if (name.includes("company")) return faker.company.name();
+    return fakerInstance.location.zipCode();
+  if (name.includes("country")) return fakerInstance.location.country();
+  if (name.includes("company")) return fakerInstance.company.name();
   if (name.includes("job") || name.includes("title"))
-    return faker.person.jobTitle();
+    return fakerInstance.person.jobTitle();
   if (name.includes("avatar") || name.includes("portrait"))
-    return faker.image.avatar();
-  if (name.includes("password")) return faker.internet.password();
+    return fakerInstance.image.avatar();
+  if (name.includes("password")) return fakerInstance.internet.password();
   if (name.includes("username") || name.includes("user_name"))
-    return faker.internet.username();
-  if (name.includes("url") || name.includes("image")) return faker.image.url();
+    return fakerInstance.internet.username();
+  if (name.includes("url") || name.includes("image"))
+    return fakerInstance.image.url();
   if (name.includes("date") || name.includes("time"))
-    return faker.date.recent().toISOString();
-  if (name.includes("id")) return faker.string.uuid();
+    return fakerInstance.date.recent().toISOString();
+  if (name.includes("id")) return fakerInstance.string.uuid();
   if (name.includes("price") || name.includes("amount"))
-    return faker.number.float({
+    return fakerInstance.number.float({
       min: schema.minimum ?? 1,
       max: schema.maximum ?? 999,
       fractionDigits: 2,
     });
   if (name.includes("description") || name.includes("bio"))
-    return faker.lorem.sentence();
+    return fakerInstance.lorem.sentence();
 
-  switch (schema.type) {
+  switch (resolvedType) {
     case "string":
       if (schema.minLength !== undefined || schema.maxLength !== undefined) {
-        return faker.string.alphanumeric({
+        return fakerInstance.string.alphanumeric({
           length: {
             min: schema.minLength ?? 1,
             max: schema.maxLength ?? Math.max(schema.minLength ?? 0, 20),
           },
         });
       }
-      return faker.lorem.word();
+      return fakerInstance.lorem.word();
     case "number":
     case "integer":
       const min = schema.minimum ?? 1;
       const max = schema.maximum ?? Math.max(min, 100);
-      return schema.type === "integer"
-        ? faker.number.int({ min, max })
-        : faker.number.float({ min, max, fractionDigits: 2 });
+      return resolvedType === "integer"
+        ? fakerInstance.number.int({ min, max })
+        : fakerInstance.number.float({ min, max, fractionDigits: 2 });
     case "boolean":
-      return faker.datatype.boolean();
+      return fakerInstance.datatype.boolean();
     default:
       return null;
   }
+}
+
+function resolveSchemaType(
+  schema: OpenAPIV3.SchemaObject,
+  rng: () => number = Math.random,
+  fakerInstance: Faker = faker,
+): string | undefined {
+  if (Array.isArray(schema.type)) {
+    const types = schema.type.filter((type) => type !== "null");
+    if (schema.type.includes("null") && rng() < 0.1) {
+      return "null";
+    }
+    if (types.length > 0) {
+      return fakerInstance.helpers.arrayElement(types);
+    }
+    return undefined;
+  }
+
+  return schema.type;
 }

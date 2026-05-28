@@ -96,6 +96,24 @@ describe("fakeDataGenerator", () => {
     expect(result).toBe("default-value");
   });
 
+  it("should use 'const' value when provided", () => {
+    const schema = {
+      type: "string",
+      const: "fixed-value",
+    };
+    const result = generateFakeData(schema);
+    expect(result).toBe("fixed-value");
+  });
+
+  it("should use first entry from 'examples' when provided", () => {
+    const schema = {
+      type: "string",
+      examples: ["example-a", "example-b"],
+    };
+    const result = generateFakeData(schema);
+    expect(result).toBe("example-a");
+  });
+
   it("should respect 'format' property for strings", () => {
     const schemas = [
       { type: "string", format: "email" },
@@ -171,6 +189,18 @@ describe("fakeDataGenerator", () => {
     expect(result).toMatch(/^[0-9]{3}-[A-Z]{3}$/);
   });
 
+  it("should handle type arrays with nullable values", () => {
+    const schema = {
+      type: ["string", "null"],
+      minLength: 5,
+    };
+    const result = generateFakeData(schema);
+    if (result !== null) {
+      expect(typeof result).toBe("string");
+      expect(result.length).toBeGreaterThanOrEqual(5);
+    }
+  });
+
   it("should handle allOf by merging schemas", () => {
     const schema = {
       allOf: [
@@ -227,6 +257,20 @@ describe("fakeDataGenerator", () => {
     const result = generateFakeData(schema);
     expect(result.customEmail).toContain("@");
     expect(result.fullName).toContain(" ");
+  });
+
+  it("should generate additionalProperties when provided", () => {
+    const schema = {
+      type: "object",
+      additionalProperties: { type: "integer" },
+      minProperties: 2,
+      maxProperties: 2,
+    };
+    const result = generateFakeData(schema);
+    expect(Object.keys(result)).toHaveLength(2);
+    Object.values(result).forEach((value) => {
+      expect(typeof value).toBe("number");
+    });
   });
 
   it("should respect pagination limit from context", () => {

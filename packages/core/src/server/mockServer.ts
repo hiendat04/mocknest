@@ -2,9 +2,15 @@ import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import { Server } from "http";
 import { OpenAPIV3 } from "openapi-types";
+import { Faker, en } from "@faker-js/faker";
 import { ParsedRoute, ParsedResponse } from "../parser/openApiParser";
 import { generateFakeData } from "../generator/fakeDataGenerator";
 import { DataStore } from "./dataStore";
+
+export interface DeterministicOptions {
+  seed?: string;
+  includeHeaders?: boolean;
+}
 
 export interface MockServerOptions {
   port: number;
@@ -23,6 +29,7 @@ export interface MockServerOptions {
   errorRate?: number;
   strictValidation?: boolean;
   stateful?: boolean;
+  deterministic?: boolean | DeterministicOptions;
 }
 
 export class MockServer {
@@ -123,6 +130,27 @@ export class MockServer {
 
         const bestResponse = findBestResponse(route, statusCode);
 
+        const deterministicOptions = normalizeDeterministicOptions(
+          this.options.deterministic,
+        );
+        const deterministicSeed = deterministicOptions
+          ? computeDeterministicSeed(
+              req,
+              route,
+              statusCode,
+              deterministicOptions,
+            )
+          : undefined;
+        const deterministicRandom = deterministicSeed !== undefined
+          ? createSeededRandom(deterministicSeed)
+          : undefined;
+        const deterministicFaker = deterministicSeed !== undefined
+          ? createSeededFaker(deterministicSeed)
+          : undefined;
+        const fakeDataOptions = deterministicRandom && deterministicFaker
+          ? { random: deterministicRandom, faker: deterministicFaker }
+          : undefined;
+
         const responseSchema =
           bestResponse?.schema ||
           (statusCode === route.statusCode ? route.responseSchema : undefined);
@@ -155,7 +183,11 @@ export class MockServer {
               const data = this.dataStore.getCollection(collection);
               if (data.length === 0 && responseSchema) {
                 // Initial seed
-                const seed = generateFakeData(responseSchema, { ...req.query });
+                const seed = generateFakeData(
+                  responseSchema,
+                  { ...req.query },
+                  fakeDataOptions,
+                );
                 const seedArray = Array.isArray(seed) ? seed : [seed];
                 this.dataStore.setCollection(collection, seedArray);
                 fakeBody = seedArray;
@@ -165,11 +197,14 @@ export class MockServer {
             } else if (route.method === "POST") {
               const newItem = req.body && Object.keys(req.body).length > 0
                 ? req.body
-                : responseSchema ? generateFakeData(responseSchema) : {};
+                : responseSchema
+                  ? generateFakeData(responseSchema, undefined, fakeDataOptions)
+                  : {};
               
               // Ensure it has an ID if it's an object
               if (isPlainObject(newItem) && !newItem.id && !newItem._id) {
-                newItem.id = Math.random().toString(36).substring(7);
+                const idRandom = deterministicRandom ?? Math.random;
+                newItem.id = idRandom().toString(36).substring(7);
               }
               this.dataStore.addItem(collection, newItem);
               fakeBody = newItem;
@@ -181,7 +216,11 @@ export class MockServer {
             if (route.method === "GET") {
               fakeBody = this.dataStore.findItem(collection, idField, idValue);
               if (!fakeBody && responseSchema) {
-                fakeBody = generateFakeData(responseSchema, { ...req.query, ...req.params });
+                fakeBody = generateFakeData(
+                  responseSchema,
+                  { ...req.query, ...req.params },
+                  fakeDataOptions,
+                );
                 if (isPlainObject(fakeBody)) {
                   fakeBody[idField] = idValue;
                   this.dataStore.addItem(collection, fakeBody);
@@ -194,7 +233,15 @@ export class MockServer {
                 fakeBody = this.dataStore.findItem(collection, idField, idValue);
               } else if (responseSchema) {
                 // Create if not exists for PUT/PATCH (upsert-ish)
-                fakeBody = { ...generateFakeData(responseSchema), ...updates, [idField]: idValue };
+                fakeBody = {
+                  ...generateFakeData(
+                    responseSchema,
+                    undefined,
+                    fakeDataOptions,
+                  ),
+                  ...updates,
+                  [idField]: idValue,
+                };
                 this.dataStore.addItem(collection, fakeBody);
               }
             } else if (route.method === "DELETE") {
@@ -248,7 +295,11 @@ export class MockServer {
             exampleValue !== undefined
               ? exampleValue
               : responseSchema
-                ? generateFakeData(responseSchema, { ...req.query, ...req.params })
+                ? generateFakeData(
+                    responseSchema,
+                    { ...req.query, ...req.params },
+                    fakeDataOptions,
+                  )
                 : {};
         }
 
@@ -339,6 +390,110 @@ export class MockServer {
   isRunning(): boolean {
     return this.server !== null;
   }
+}
+
+function normalizeDeterministicOptions(
+  value: MockServerOptions["deterministic"],
+): DeterministicOptions | undefined {
+  if (!value) return undefined;
+  if (value === true) {
+    return { includeHeaders: true };
+  }
+  return {
+    seed: value.seed,
+    includeHeaders: value.includeHeaders ?? true,
+  };
+}
+
+function computeDeterministicSeed(
+  req: Request,
+  route: ParsedRoute,
+  statusCode: number,
+  options: DeterministicOptions,
+): number {
+  const headerData = options.includeHeaders
+    ? normalizeHeaders(req.headers)
+    : undefined;
+  const payload = {
+    method: route.method,
+    path: req.path,
+    statusCode,
+    params: req.params,
+    query: req.query,
+    body: req.body,
+    headers: headerData,
+    seed: options.seed ?? "",
+  };
+  return hashStringToSeed(stableStringify(payload));
+}
+
+function normalizeHeaders(
+  headers: Request["headers"],
+): Record<string, string | string[]> {
+  const result: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    if (typeof value === "string" || Array.isArray(value)) {
+      result[key.toLowerCase()] = value;
+    }
+  }
+  return result;
+}
+
+function createSeededRandom(seed: number): () => number {
+  let t = seed >>> 0;
+  return () => {
+    t += 0x6d2b79f5;
+    let x = t;
+    x = Math.imul(x ^ (x >>> 15), x | 1);
+    x ^= x + Math.imul(x ^ (x >>> 7), x | 61);
+    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function createSeededFaker(seed: number): Faker {
+  const seeded = new Faker({ locale: [en] });
+  seeded.seed(seed);
+  return seeded;
+}
+
+function hashStringToSeed(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i += 1) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function stableStringify(value: unknown): string {
+  if (value === null || value === undefined) {
+    return "null";
+  }
+
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  if (isPlainObject(value)) {
+    const keys = Object.keys(value).sort();
+    const entries = keys.map((key) => {
+      const entryValue = stableStringify(
+        (value as Record<string, unknown>)[key],
+      );
+      return `${JSON.stringify(key)}:${entryValue}`;
+    });
+    return `{${entries.join(",")}}`;
+  }
+
+  return JSON.stringify(value);
 }
 
 function validateRouteRequest(route: ParsedRoute, req: Request): string[] {
