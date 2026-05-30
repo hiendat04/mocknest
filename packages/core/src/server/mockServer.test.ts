@@ -330,6 +330,43 @@ describe("MockServer", () => {
     expect(body1).toEqual(body2);
   });
 
+  it("should vary deterministic output by x-mock-seed header", async () => {
+    server = new MockServer({
+      port: 3013,
+      deterministic: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/seeded",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: {
+              id: { type: "string" },
+              email: { type: "string" },
+              amount: { type: "number", minimum: 1, maximum: 100000 },
+            },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const res1 = await fetch("http://localhost:3013/seeded", {
+      headers: { "x-mock-seed": "alpha" },
+    });
+    const body1: any = await res1.json();
+
+    const res2 = await fetch("http://localhost:3013/seeded", {
+      headers: { "x-mock-seed": "beta" },
+    });
+    const body2: any = await res2.json();
+
+    expect(body1).not.toEqual(body2);
+  });
+
   it("should respect mockDelay and mockStatusCode from ParsedRoute", async () => {
     server = new MockServer({
       port: 3009,

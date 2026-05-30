@@ -317,7 +317,7 @@ export class MockServer {
 
         // Chaos mode (error rate)
         if (this.options.errorRate && this.options.errorRate > 0) {
-          const random = Math.random();
+          const random = (deterministicRandom ?? Math.random)();
           if (random < this.options.errorRate) {
             console.error(
               `[MockNest] Simulated 500 Error for ${route.method} ${req.path}`,
@@ -414,6 +414,7 @@ function computeDeterministicSeed(
   const headerData = options.includeHeaders
     ? normalizeHeaders(req.headers)
     : undefined;
+  const requestSeed = req.header("x-mock-seed");
   const payload = {
     method: route.method,
     path: req.path,
@@ -422,6 +423,7 @@ function computeDeterministicSeed(
     query: req.query,
     body: req.body,
     headers: headerData,
+    requestSeed: requestSeed ?? "",
     seed: options.seed ?? "",
   };
   return hashStringToSeed(stableStringify(payload));
