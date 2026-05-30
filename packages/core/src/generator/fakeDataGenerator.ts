@@ -124,9 +124,10 @@ function generateValueFromField(
   const resolvedType = resolveSchemaType(schema, rng, fakerInstance);
   if (resolvedType === "null") return null;
   if (schema.nullable && rng() < 0.1) return null;
-  if (schema.const !== undefined) return schema.const;
-  if (Array.isArray(schema.examples) && schema.examples.length > 0)
-    return schema.examples[0];
+  const schemaExtras = schema as Record<string, any>;
+  if (schemaExtras.const !== undefined) return schemaExtras.const;
+  if (Array.isArray(schemaExtras.examples) && schemaExtras.examples.length > 0)
+    return schemaExtras.examples[0];
   if (schema.example !== undefined) return schema.example;
   if (schema.default !== undefined) return schema.default;
 

@@ -12,6 +12,15 @@ export interface DeterministicOptions {
   includeHeaders?: boolean;
 }
 
+export interface MockServerLogOptions {
+  enabled?: boolean;
+  logHeaders?: boolean;
+  logBody?: boolean;
+  logResponseBody?: boolean;
+  redactHeaders?: string[];
+  redactFields?: string[];
+}
+
 export interface MockServerOptions {
   port: number;
   routes: ParsedRoute[];
@@ -30,6 +39,7 @@ export interface MockServerOptions {
   strictValidation?: boolean;
   stateful?: boolean;
   deterministic?: boolean | DeterministicOptions;
+  logging?: MockServerLogOptions;
 }
 
 export class MockServer {
@@ -105,16 +115,7 @@ export class MockServer {
 
       // Dispatch handlers from the HTTP verb string in the parsed route.
       (this.app as any)[method](route.path, (req: Request, res: Response) => {
-        if (
-          route.method !== "GET" &&
-          req.body &&
-          Object.keys(req.body).length > 0
-        ) {
-          console.log(
-            `[MockNest] Request Body:`,
-            JSON.stringify(req.body, null, 2),
-          );
-        }
+        const loggingOptions = normalizeLoggingOptions(this.options.logging);
 
         const headerDelay = req.header("x-mock-delay");
         const delay = headerDelay
@@ -150,6 +151,14 @@ export class MockServer {
         const fakeDataOptions = deterministicRandom && deterministicFaker
           ? { random: deterministicRandom, faker: deterministicFaker }
           : undefined;
+
+        const requestLog = buildRequestLog(req, route.method, loggingOptions);
+        if (requestLog) {
+          console.log(
+            `[MockNest] Request ${route.method} ${req.path}`,
+            requestLog,
+          );
+        }
 
         const responseSchema =
           bestResponse?.schema ||
@@ -327,7 +336,17 @@ export class MockServer {
           }
         }
 
-        console.log(`[MockNest] ${route.method} ${req.path} -> ${statusCode}`);
+        if (loggingOptions.enabled) {
+          if (loggingOptions.logResponseBody) {
+            const responseLog = buildResponseLog(fakeBody, loggingOptions);
+            console.log(
+              `[MockNest] Response ${route.method} ${req.path} -> ${statusCode}`,
+              responseLog,
+            );
+          } else {
+            console.log(`[MockNest] ${route.method} ${req.path} -> ${statusCode}`);
+          }
+        }
 
         // Artificial delay to simulate real network.
         sendJson(statusCode, fakeBody, responseHeaders);
@@ -403,6 +422,105 @@ function normalizeDeterministicOptions(
     seed: value.seed,
     includeHeaders: value.includeHeaders ?? true,
   };
+}
+
+function normalizeLoggingOptions(
+  value: MockServerOptions["logging"],
+): Required<MockServerLogOptions> {
+  const defaultRedactHeaders = [
+    "authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+  ];
+  const defaultRedactFields = [
+    "password",
+    "token",
+    "access_token",
+    "refresh_token",
+    "secret",
+    "api_key",
+  ];
+
+  return {
+    enabled: value?.enabled ?? true,
+    logHeaders: value?.logHeaders ?? false,
+    logBody: value?.logBody ?? true,
+    logResponseBody: value?.logResponseBody ?? false,
+    redactHeaders: (value?.redactHeaders ?? defaultRedactHeaders).map((h) =>
+      h.toLowerCase(),
+    ),
+    redactFields: (value?.redactFields ?? defaultRedactFields).map((f) =>
+      f.toLowerCase(),
+    ),
+  };
+}
+
+function buildRequestLog(
+  req: Request,
+  method: string,
+  options: Required<MockServerLogOptions>,
+): Record<string, unknown> | undefined {
+  if (!options.enabled) return undefined;
+
+  const payload: Record<string, unknown> = {};
+
+  if (options.logHeaders) {
+    payload.headers = redactHeaders(req.headers, options.redactHeaders);
+  }
+
+  if (
+    options.logBody &&
+    method !== "GET" &&
+    req.body &&
+    Object.keys(req.body).length > 0
+  ) {
+    payload.body = redactValue(req.body, options.redactFields);
+  }
+
+  return Object.keys(payload).length > 0 ? payload : undefined;
+}
+
+function buildResponseLog(
+  body: unknown,
+  options: Required<MockServerLogOptions>,
+): Record<string, unknown> | undefined {
+  if (!options.enabled || !options.logResponseBody) return undefined;
+  return { body: redactValue(body, options.redactFields) };
+}
+
+function redactHeaders(
+  headers: Request["headers"],
+  redactList: string[],
+): Record<string, string | string[]> {
+  const result: Record<string, string | string[]> = {};
+  for (const [key, value] of Object.entries(headers)) {
+    const lowerKey = key.toLowerCase();
+    if (typeof value === "string" || Array.isArray(value)) {
+      result[lowerKey] = redactList.includes(lowerKey) ? "[REDACTED]" : value;
+    }
+  }
+  return result;
+}
+
+function redactValue(value: unknown, redactFields: string[]): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => redactValue(item, redactFields));
+  }
+
+  if (isPlainObject(value)) {
+    const result: Record<string, unknown> = {};
+    for (const [key, entryValue] of Object.entries(value)) {
+      if (redactFields.includes(key.toLowerCase())) {
+        result[key] = "[REDACTED]";
+      } else {
+        result[key] = redactValue(entryValue, redactFields);
+      }
+    }
+    return result;
+  }
+
+  return value;
 }
 
 function computeDeterministicSeed(

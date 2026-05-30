@@ -5,3 +5,4 @@ export { generateFakeData } from "./generator/fakeDataGenerator";
 export { MockServer } from "./server/mockServer";
 export type { MockServerOptions } from "./server/mockServer";
 export type { DeterministicOptions } from "./server/mockServer";
+export type { MockServerLogOptions } from "./server/mockServer";

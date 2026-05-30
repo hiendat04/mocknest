@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { MockServer } from "./mockServer";
 
 describe("MockServer", () => {
@@ -397,5 +397,55 @@ describe("MockServer", () => {
     expect(duration).toBeGreaterThanOrEqual(100);
     const body: any = await response.json();
     expect(body).toHaveProperty("status");
+  });
+
+  it("should redact sensitive request data in logs", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    server = new MockServer({
+      port: 3014,
+      logging: {
+        logHeaders: true,
+        logBody: true,
+        logResponseBody: true,
+        redactHeaders: ["authorization"],
+        redactFields: ["password"],
+      },
+      routes: [
+        {
+          method: "POST",
+          path: "/log-redact",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    await fetch("http://localhost:3014/log-redact", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer super-secret",
+      },
+      body: JSON.stringify({ password: "super-secret", name: "Alice" }),
+    });
+
+    const hasRedaction = logSpy.mock.calls.some((call) =>
+      JSON.stringify(call).includes("[REDACTED]"),
+    );
+    const leakedSecret = logSpy.mock.calls.some((call) =>
+      JSON.stringify(call).includes("super-secret"),
+    );
+
+    expect(hasRedaction).toBe(true);
+    expect(leakedSecret).toBe(false);
+
+    logSpy.mockRestore();
   });
 });
