@@ -21,6 +21,45 @@ export interface MockServerLogOptions {
   redactFields?: string[];
 }
 
+export interface RequestHistoryOptions {
+  enabled?: boolean;
+  limit?: number;
+  includeHeaders?: boolean;
+  includeBody?: boolean;
+  includeResponseBody?: boolean;
+  redactHeaders?: string[];
+  redactFields?: string[];
+}
+
+export interface RequestLogEntry {
+  id: number;
+  timestamp: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  query?: Record<string, unknown>;
+  params?: Record<string, unknown>;
+  headers?: Record<string, string | string[]>;
+  body?: unknown;
+  responseBody?: unknown;
+}
+
+const DEFAULT_REDACT_HEADERS = [
+  "authorization",
+  "cookie",
+  "set-cookie",
+  "x-api-key",
+];
+
+const DEFAULT_REDACT_FIELDS = [
+  "password",
+  "token",
+  "access_token",
+  "refresh_token",
+  "secret",
+  "api_key",
+];
+
 export interface MockServerOptions {
   port: number;
   routes: ParsedRoute[];
@@ -40,18 +79,25 @@ export interface MockServerOptions {
   stateful?: boolean;
   deterministic?: boolean | DeterministicOptions;
   logging?: MockServerLogOptions;
+  requestHistory?: boolean | RequestHistoryOptions;
 }
 
 export class MockServer {
   private app: Express;
   private server: Server | null = null;
   private dataStore: DataStore;
+  private requestHistory: RequestLogEntry[] = [];
+  private requestIdCounter = 0;
+  private requestHistoryOptions: Required<RequestHistoryOptions>;
 
   constructor(private options: MockServerOptions) {
     this.app = express();
     this.app.use(cors());
     this.app.use(express.json());
     this.dataStore = new DataStore();
+    this.requestHistoryOptions = normalizeRequestHistoryOptions(
+      this.options.requestHistory,
+    );
     this.registerInternalRoutes();
     this.registerRoutes();
   }
@@ -67,6 +113,17 @@ export class MockServer {
       });
 
       console.log(`[MockNest] API Explorer available at http://localhost:${this.options.port}/__mocknest/docs`);
+    }
+
+    if (this.requestHistoryOptions.enabled) {
+      this.app.get("/__mocknest/requests", (req, res) => {
+        res.json(this.requestHistory);
+      });
+
+      this.app.delete("/__mocknest/requests", (req, res) => {
+        this.requestHistory = [];
+        res.json({ ok: true });
+      });
     }
   }
 
@@ -116,6 +173,7 @@ export class MockServer {
       // Dispatch handlers from the HTTP verb string in the parsed route.
       (this.app as any)[method](route.path, (req: Request, res: Response) => {
         const loggingOptions = normalizeLoggingOptions(this.options.logging);
+        const historyOptions = this.requestHistoryOptions;
 
         const headerDelay = req.header("x-mock-delay");
         const delay = headerDelay
@@ -273,6 +331,16 @@ export class MockServer {
             payload,
             req.headers,
           );
+          this.recordRequest(
+            buildRequestHistoryEntry(
+              req,
+              route.method,
+              sCode,
+              payload,
+              historyOptions,
+              this.requestIdCounter + 1,
+            ),
+          );
           setTimeout(() => {
             if (sHeaders) {
               for (const [name, value] of Object.entries(sHeaders)) {
@@ -409,6 +477,16 @@ export class MockServer {
   isRunning(): boolean {
     return this.server !== null;
   }
+
+  private recordRequest(entry: RequestLogEntry | undefined): void {
+    if (!entry || !this.requestHistoryOptions.enabled) return;
+    this.requestHistory.push(entry);
+    this.requestIdCounter = entry.id;
+    const limit = this.requestHistoryOptions.limit;
+    if (limit > 0 && this.requestHistory.length > limit) {
+      this.requestHistory.splice(0, this.requestHistory.length - limit);
+    }
+  }
 }
 
 function normalizeDeterministicOptions(
@@ -427,30 +505,57 @@ function normalizeDeterministicOptions(
 function normalizeLoggingOptions(
   value: MockServerOptions["logging"],
 ): Required<MockServerLogOptions> {
-  const defaultRedactHeaders = [
-    "authorization",
-    "cookie",
-    "set-cookie",
-    "x-api-key",
-  ];
-  const defaultRedactFields = [
-    "password",
-    "token",
-    "access_token",
-    "refresh_token",
-    "secret",
-    "api_key",
-  ];
-
   return {
     enabled: value?.enabled ?? true,
     logHeaders: value?.logHeaders ?? false,
     logBody: value?.logBody ?? true,
     logResponseBody: value?.logResponseBody ?? false,
-    redactHeaders: (value?.redactHeaders ?? defaultRedactHeaders).map((h) =>
+    redactHeaders: (value?.redactHeaders ?? DEFAULT_REDACT_HEADERS).map((h) =>
       h.toLowerCase(),
     ),
-    redactFields: (value?.redactFields ?? defaultRedactFields).map((f) =>
+    redactFields: (value?.redactFields ?? DEFAULT_REDACT_FIELDS).map((f) =>
+      f.toLowerCase(),
+    ),
+  };
+}
+
+function normalizeRequestHistoryOptions(
+  value: MockServerOptions["requestHistory"],
+): Required<RequestHistoryOptions> {
+  if (value === true) {
+    return {
+      enabled: true,
+      limit: 100,
+      includeHeaders: false,
+      includeBody: true,
+      includeResponseBody: false,
+      redactHeaders: DEFAULT_REDACT_HEADERS.map((h: string) => h.toLowerCase()),
+      redactFields: DEFAULT_REDACT_FIELDS.map((f: string) => f.toLowerCase()),
+    };
+  }
+
+  if (!value) {
+    return {
+      enabled: false,
+      limit: 100,
+      includeHeaders: false,
+      includeBody: true,
+      includeResponseBody: false,
+      redactHeaders: DEFAULT_REDACT_HEADERS.map((h: string) => h.toLowerCase()),
+      redactFields: DEFAULT_REDACT_FIELDS.map((f: string) => f.toLowerCase()),
+    };
+  }
+
+  return {
+    enabled: value.enabled ?? false,
+    limit: value.limit ?? 100,
+    includeHeaders: value.includeHeaders ?? false,
+    includeBody: value.includeBody ?? true,
+    includeResponseBody: value.includeResponseBody ?? false,
+    redactHeaders: (value.redactHeaders ?? DEFAULT_REDACT_HEADERS).map((h: string) =>
+      h.toLowerCase(),
+    ),
+    redactFields: (value.redactFields ?? DEFAULT_REDACT_FIELDS).map((f: string) =>
       f.toLowerCase(),
     ),
   };
@@ -487,6 +592,45 @@ function buildResponseLog(
 ): Record<string, unknown> | undefined {
   if (!options.enabled || !options.logResponseBody) return undefined;
   return { body: redactValue(body, options.redactFields) };
+}
+
+function buildRequestHistoryEntry(
+  req: Request,
+  method: string,
+  statusCode: number,
+  responseBody: unknown,
+  options: Required<RequestHistoryOptions>,
+  id: number,
+): RequestLogEntry | undefined {
+  if (!options.enabled) return undefined;
+
+  const entry: RequestLogEntry = {
+    id,
+    timestamp: new Date().toISOString(),
+    method,
+    path: req.path,
+    statusCode,
+    query: redactValue(req.query, options.redactFields) as Record<string, unknown>,
+    params: redactValue(req.params, options.redactFields) as Record<string, unknown>,
+  };
+
+  if (options.includeHeaders) {
+    entry.headers = redactHeaders(req.headers, options.redactHeaders);
+  }
+
+  if (
+    options.includeBody &&
+    req.body &&
+    Object.keys(req.body).length > 0
+  ) {
+    entry.body = redactValue(req.body, options.redactFields);
+  }
+
+  if (options.includeResponseBody) {
+    entry.responseBody = redactValue(responseBody, options.redactFields);
+  }
+
+  return entry;
 }
 
 function redactHeaders(

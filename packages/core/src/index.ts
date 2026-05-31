@@ -6,3 +6,5 @@ export { MockServer } from "./server/mockServer";
 export type { MockServerOptions } from "./server/mockServer";
 export type { DeterministicOptions } from "./server/mockServer";
 export type { MockServerLogOptions } from "./server/mockServer";
+export type { RequestHistoryOptions } from "./server/mockServer";
+export type { RequestLogEntry } from "./server/mockServer";

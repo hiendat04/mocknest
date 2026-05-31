@@ -448,4 +448,59 @@ describe("MockServer", () => {
 
     logSpy.mockRestore();
   });
+
+  it("should record request history with limits and redaction", async () => {
+    server = new MockServer({
+      port: 3015,
+      requestHistory: {
+        enabled: true,
+        limit: 1,
+        includeHeaders: true,
+        includeBody: true,
+        includeResponseBody: true,
+        redactHeaders: ["authorization"],
+        redactFields: ["password"],
+      },
+      routes: [
+        {
+          method: "POST",
+          path: "/history",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    await fetch("http://localhost:3015/history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-1",
+      },
+      body: JSON.stringify({ password: "secret-1" }),
+    });
+
+    await fetch("http://localhost:3015/history", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer secret-2",
+      },
+      body: JSON.stringify({ password: "secret-2" }),
+    });
+
+    const historyRes = await fetch("http://localhost:3015/__mocknest/requests");
+    const history: any[] = await historyRes.json();
+
+    expect(history).toHaveLength(1);
+    expect(history[0].headers.authorization).toBe("[REDACTED]");
+    expect(history[0].body.password).toBe("[REDACTED]");
+    expect(history[0].responseBody).toBeDefined();
+  });
 });
