@@ -503,4 +503,121 @@ describe("MockServer", () => {
     expect(history[0].body.password).toBe("[REDACTED]");
     expect(history[0].responseBody).toBeDefined();
   });
+
+  it("should clear request history via DELETE endpoint", async () => {
+    server = new MockServer({
+      port: 3016,
+      requestHistory: {
+        enabled: true,
+        limit: 5,
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/clearable",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    await fetch("http://localhost:3016/clearable");
+    await fetch("http://localhost:3016/clearable");
+
+    const beforeRes = await fetch("http://localhost:3016/__mocknest/requests");
+    const before: any[] = await beforeRes.json();
+    expect(before.length).toBe(2);
+
+    await fetch("http://localhost:3016/__mocknest/requests", {
+      method: "DELETE",
+    });
+
+    const afterRes = await fetch("http://localhost:3016/__mocknest/requests");
+    const after: any[] = await afterRes.json();
+    expect(after.length).toBe(0);
+  });
+
+  it("should omit headers and bodies when history options are disabled", async () => {
+    server = new MockServer({
+      port: 3017,
+      requestHistory: {
+        enabled: true,
+        includeHeaders: false,
+        includeBody: false,
+        includeResponseBody: false,
+      },
+      routes: [
+        {
+          method: "POST",
+          path: "/history-omit",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    await fetch("http://localhost:3017/history-omit", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ payload: "data" }),
+    });
+
+    const historyRes = await fetch("http://localhost:3017/__mocknest/requests");
+    const history: any[] = await historyRes.json();
+
+    expect(history).toHaveLength(1);
+    expect(history[0].headers).toBeUndefined();
+    expect(history[0].body).toBeUndefined();
+    expect(history[0].responseBody).toBeUndefined();
+  });
+
+  it("should suppress request/response logs when logging is disabled", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+    server = new MockServer({
+      port: 3018,
+      logging: {
+        enabled: false,
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/no-logs",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+    await fetch("http://localhost:3018/no-logs");
+
+    const hasRequestLog = logSpy.mock.calls.some((call) =>
+      JSON.stringify(call).includes("Request"),
+    );
+    const hasResponseLog = logSpy.mock.calls.some((call) =>
+      JSON.stringify(call).includes("Response"),
+    );
+
+    expect(hasRequestLog).toBe(false);
+    expect(hasResponseLog).toBe(false);
+
+    logSpy.mockRestore();
+  });
 });
