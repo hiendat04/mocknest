@@ -620,4 +620,96 @@ describe("MockServer", () => {
 
     logSpy.mockRestore();
   });
+
+  it("should apply response overrides based on headers", async () => {
+    server = new MockServer({
+      port: 3019,
+      responseOverrides: [
+        {
+          id: "special-override",
+          method: "GET",
+          path: "/override",
+          match: {
+            headers: { "x-variant": "special" },
+          },
+          response: {
+            statusCode: 418,
+            headers: { "x-override": "1" },
+            body: { special: true },
+          },
+        },
+      ],
+      routes: [
+        {
+          method: "GET",
+          path: "/override",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const res1 = await fetch("http://localhost:3019/override", {
+      headers: { "x-variant": "special" },
+    });
+    const body1: any = await res1.json();
+    expect(res1.status).toBe(418);
+    expect(res1.headers.get("x-override")).toBe("1");
+    expect(body1).toEqual({ special: true });
+
+    const res2 = await fetch("http://localhost:3019/override");
+    const body2: any = await res2.json();
+    expect(res2.status).toBe(200);
+    expect(body2).toHaveProperty("ok");
+  });
+
+  it("should apply once overrides only once", async () => {
+    server = new MockServer({
+      port: 3020,
+      responseOverrides: [
+        {
+          method: "GET",
+          path: "/once",
+          match: {
+            query: { mode: "first" },
+          },
+          response: {
+            statusCode: 409,
+            body: { once: true },
+          },
+          once: true,
+        },
+      ],
+      routes: [
+        {
+          method: "GET",
+          path: "/once",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const res1 = await fetch("http://localhost:3020/once?mode=first");
+    const body1: any = await res1.json();
+    expect(res1.status).toBe(409);
+    expect(body1).toEqual({ once: true });
+
+    const res2 = await fetch("http://localhost:3020/once?mode=first");
+    const body2: any = await res2.json();
+    expect(res2.status).toBe(200);
+    expect(body2).toHaveProperty("ok");
+  });
 });

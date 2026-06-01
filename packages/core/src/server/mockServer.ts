@@ -3,7 +3,12 @@ import cors from "cors";
 import { Server } from "http";
 import { OpenAPIV3 } from "openapi-types";
 import { Faker, en } from "@faker-js/faker";
-import { ParsedRoute, ParsedResponse } from "../parser/openApiParser";
+import {
+  ParsedRoute,
+  ParsedResponse,
+  ResponseOverrideRule,
+  ResponseOverrideMatch,
+} from "../parser/openApiParser";
 import { generateFakeData } from "../generator/fakeDataGenerator";
 import { DataStore } from "./dataStore";
 
@@ -80,6 +85,7 @@ export interface MockServerOptions {
   deterministic?: boolean | DeterministicOptions;
   logging?: MockServerLogOptions;
   requestHistory?: boolean | RequestHistoryOptions;
+  responseOverrides?: ResponseOverrideRule[];
 }
 
 export class MockServer {
@@ -89,6 +95,7 @@ export class MockServer {
   private requestHistory: RequestLogEntry[] = [];
   private requestIdCounter = 0;
   private requestHistoryOptions: Required<RequestHistoryOptions>;
+  private overrideHitCounts: Map<string, number> = new Map();
 
   constructor(private options: MockServerOptions) {
     this.app = express();
@@ -176,16 +183,20 @@ export class MockServer {
         const historyOptions = this.requestHistoryOptions;
 
         const headerDelay = req.header("x-mock-delay");
-        const delay = headerDelay
+        const baseDelay = headerDelay
           ? parseInt(headerDelay, 10)
           : (route.mockDelay ?? this.options.delay ?? 20);
 
         const headerStatusCode =
           req.header("x-mock-response-code") ||
           req.header("x-mock-status-code");
-        const statusCode = headerStatusCode
+        const baseStatusCode = headerStatusCode
           ? parseInt(headerStatusCode, 10)
           : (route.mockStatusCode ?? route.statusCode);
+
+        const override = this.selectResponseOverride(req, route);
+        const delay = override?.response.delay ?? baseDelay;
+        const statusCode = override?.response.statusCode ?? baseStatusCode;
 
         const bestResponse = findBestResponse(route, statusCode);
 
@@ -367,6 +378,10 @@ export class MockServer {
           }
         }
 
+        if (override?.response.body !== undefined) {
+          fakeBody = override.response.body;
+        }
+
         if (fakeBody === undefined) {
           fakeBody =
             exampleValue !== undefined
@@ -417,7 +432,8 @@ export class MockServer {
         }
 
         // Artificial delay to simulate real network.
-        sendJson(statusCode, fakeBody, responseHeaders);
+        const mergedHeaders = mergeHeaders(responseHeaders, override?.response.headers);
+        sendJson(statusCode, fakeBody, mergedHeaders);
       });
     }
 
@@ -487,6 +503,153 @@ export class MockServer {
       this.requestHistory.splice(0, this.requestHistory.length - limit);
     }
   }
+
+  private selectResponseOverride(
+    req: Request,
+    route: ParsedRoute,
+  ): ResponseOverrideRule | undefined {
+    const overrides = collectOverrides(route, this.options.responseOverrides);
+    if (overrides.length === 0) return undefined;
+
+    for (let index = 0; index < overrides.length; index += 1) {
+      const override = overrides[index];
+      if (!matchesOverrideContext(route, override)) continue;
+      if (!matchesOverride(req, override.match)) continue;
+
+      const overrideKey = getOverrideKey(override, index, route);
+      const hitCount = this.overrideHitCounts.get(overrideKey) ?? 0;
+      if (override.once && hitCount > 0) {
+        continue;
+      }
+
+      this.overrideHitCounts.set(overrideKey, hitCount + 1);
+      return override;
+    }
+
+    return undefined;
+  }
+}
+
+function collectOverrides(
+  route: ParsedRoute,
+  globalOverrides?: ResponseOverrideRule[],
+): ResponseOverrideRule[] {
+  const routeOverrides = route.responseOverrides ?? [];
+  const combined = [] as ResponseOverrideRule[];
+  if (globalOverrides) combined.push(...globalOverrides);
+  if (routeOverrides.length > 0) combined.push(...routeOverrides);
+  return combined;
+}
+
+function matchesOverrideContext(
+  route: ParsedRoute,
+  override: ResponseOverrideRule,
+): boolean {
+  if (override.method && override.method.toUpperCase() !== route.method) {
+    return false;
+  }
+  if (override.path && override.path !== route.path) {
+    return false;
+  }
+  return true;
+}
+
+function matchesOverride(
+  req: Request,
+  match: ResponseOverrideMatch | undefined,
+): boolean {
+  if (!match) return true;
+
+  if (match.headers && !matchesHeaderConditions(req.headers, match.headers)) {
+    return false;
+  }
+
+  if (match.query && !matchesRecordConditions(req.query, match.query)) {
+    return false;
+  }
+
+  if (match.params && !matchesRecordConditions(req.params, match.params)) {
+    return false;
+  }
+
+  if (match.body && !matchesBodyConditions(req.body, match.body)) {
+    return false;
+  }
+
+  return true;
+}
+
+function matchesHeaderConditions(
+  headers: Request["headers"],
+  expected: Record<string, string | number | boolean | string[]>,
+): boolean {
+  const normalized = normalizeHeaders(headers);
+  return Object.entries(expected).every(([key, value]) => {
+    const actual = normalized[key.toLowerCase()];
+    if (!actual) return false;
+    return matchesStringArray(actual, value);
+  });
+}
+
+function matchesRecordConditions(
+  actualRecord: Record<string, any>,
+  expectedRecord: Record<string, string | number | boolean | string[]>,
+): boolean {
+  return Object.entries(expectedRecord).every(([key, value]) => {
+    const actualValue = actualRecord[key];
+    if (actualValue === undefined) return false;
+    return matchesStringArray(actualValue, value);
+  });
+}
+
+function matchesBodyConditions(actual: unknown, expected: unknown): boolean {
+  return deepPartialMatch(expected, actual);
+}
+
+function matchesStringArray(
+  actual: string | string[] | number | boolean,
+  expected: string | string[] | number | boolean,
+): boolean {
+  const actualValues = Array.isArray(actual) ? actual.map(String) : [String(actual)];
+  const expectedValues = Array.isArray(expected) ? expected.map(String) : [String(expected)];
+  return expectedValues.every((value) => actualValues.includes(value));
+}
+
+function deepPartialMatch(expected: unknown, actual: unknown): boolean {
+  if (Array.isArray(expected)) {
+    if (!Array.isArray(actual) || expected.length !== actual.length) {
+      return false;
+    }
+    return expected.every((value, index) => deepPartialMatch(value, actual[index]));
+  }
+
+  if (isPlainObject(expected)) {
+    if (!isPlainObject(actual)) return false;
+    return Object.entries(expected).every(([key, value]) =>
+      deepPartialMatch(value, (actual as Record<string, unknown>)[key]),
+    );
+  }
+
+  return expected === actual;
+}
+
+function getOverrideKey(
+  override: ResponseOverrideRule,
+  index: number,
+  route: ParsedRoute,
+): string {
+  if (override.id) return override.id;
+  const method = override.method ?? route.method;
+  const path = override.path ?? route.path;
+  return `${method}:${path}:${index}`;
+}
+
+function mergeHeaders(
+  baseHeaders?: Record<string, string>,
+  overrideHeaders?: Record<string, string>,
+): Record<string, string> | undefined {
+  if (!baseHeaders && !overrideHeaders) return undefined;
+  return { ...(baseHeaders ?? {}), ...(overrideHeaders ?? {}) };
 }
 
 function normalizeDeterministicOptions(

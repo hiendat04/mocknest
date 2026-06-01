@@ -17,6 +17,27 @@ export interface ParsedResponse {
   examples?: Record<string, any>;
 }
 
+export interface ResponseOverrideMatch {
+  headers?: Record<string, string | string[]>;
+  query?: Record<string, string | number | boolean | string[]>;
+  params?: Record<string, string | number | boolean | string[]>;
+  body?: Record<string, unknown> | unknown[];
+}
+
+export interface ResponseOverrideRule {
+  id?: string;
+  method?: string;
+  path?: string;
+  match?: ResponseOverrideMatch;
+  response: {
+    statusCode?: number;
+    headers?: Record<string, string>;
+    body?: unknown;
+    delay?: number;
+  };
+  once?: boolean;
+}
+
 export interface ParsedRoute {
   method: string;
   path: string;
@@ -34,6 +55,7 @@ export interface ParsedRoute {
   statusCode: number;
   mockDelay?: number;
   mockStatusCode?: number;
+  responseOverrides?: ResponseOverrideRule[];
 }
 
 export interface ParseResult {
