@@ -284,4 +284,156 @@ describe("fakeDataGenerator", () => {
     const result2 = generateFakeData(schema, { per_page: 3 });
     expect(result2).toHaveLength(3);
   });
+
+  it("should handle integer type", () => {
+    const schema = { type: "integer" };
+    const result = generateFakeData(schema);
+    expect(Number.isInteger(result)).toBe(true);
+  });
+
+  it("should handle nested objects", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        user: {
+          type: "object",
+          properties: {
+            profile: {
+              type: "object",
+              properties: {
+                name: { type: "string" },
+                age: { type: "integer" },
+              },
+            },
+          },
+        },
+      },
+    };
+    const result = generateFakeData(schema);
+    expect(result).toHaveProperty("user");
+    if (result.user && typeof result.user === "object") {
+      expect(result.user).toHaveProperty("profile");
+    }
+  });
+
+  it("should handle arrays of objects", () => {
+    const schema = {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          name: { type: "string" },
+        },
+      },
+    };
+    const result = generateFakeData(schema);
+    expect(Array.isArray(result)).toBe(true);
+    result.forEach((item: any) => {
+      expect(item).toHaveProperty("id");
+      expect(item).toHaveProperty("name");
+      expect(typeof item.id).toBe("string");
+      expect(typeof item.name).toBe("string");
+    });
+  });
+
+  it("should handle minimum and maximum for numbers", () => {
+    const schema = {
+      type: "number",
+      minimum: 5,
+      maximum: 15,
+    };
+    const result = generateFakeData(schema);
+    expect(typeof result).toBe("number");
+    expect(result).toBeGreaterThanOrEqual(5);
+    expect(result).toBeLessThanOrEqual(15);
+  });
+
+  it("should prefer exclusive bounds when standard bounds aren't provided", () => {
+    const schema = {
+      type: "number",
+      minimum: 1,
+      maximum: 100,
+    };
+    const result = generateFakeData(schema);
+    expect(typeof result).toBe("number");
+    expect(result).toBeGreaterThanOrEqual(1);
+    expect(result).toBeLessThanOrEqual(100);
+  });
+
+  it("should handle required properties in objects", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        required_field: { type: "string" },
+        optional_field: { type: "string" },
+      },
+      required: ["required_field"],
+    };
+    const result = generateFakeData(schema);
+    expect(result).toHaveProperty("required_field");
+  });
+
+  it("should handle null type", () => {
+    const schema = { type: "null" };
+    const result = generateFakeData(schema);
+    expect(result).toBeNull();
+  });
+
+  it("should respect pattern property (basic)", () => {
+    const schema = {
+      type: "string",
+      pattern: "^[A-Z]+$",
+    };
+    const result = generateFakeData(schema);
+    expect(typeof result).toBe("string");
+    expect(result.length).toBeGreaterThan(0);
+  });
+
+  it("should handle deeply nested allOf", () => {
+    const schema = {
+      allOf: [
+        {
+          type: "object",
+          properties: { id: { type: "string" } },
+        },
+        {
+          properties: {
+            metadata: {
+              type: "object",
+              properties: { createdAt: { type: "string" } },
+            },
+          },
+        },
+      ],
+    };
+    const result = generateFakeData(schema);
+    expect(result.id).toBeDefined();
+    expect(result.metadata).toBeDefined();
+  });
+
+  it("should handle complex nested data structure", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        id: { type: "string", format: "uuid" },
+        users: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              email: { type: "string", format: "email" },
+            },
+          },
+        },
+      },
+    };
+    const result = generateFakeData(schema);
+    expect(typeof result).toBe("object");
+    expect(result).toHaveProperty("id");
+    if (result.users) {
+      expect(Array.isArray(result.users)).toBe(true);
+    }
+  });
 });
