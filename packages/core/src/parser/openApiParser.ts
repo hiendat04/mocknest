@@ -84,6 +84,25 @@ export async function parseOpenApiFile(
 
       const mockDelay = (operation as any)["x-mock-delay"];
       const mockStatusCode = (operation as any)["x-mock-status"];
+      const mockResponses = (operation as any)["x-mock-responses"];
+
+      const responseOverrides: ResponseOverrideRule[] = [];
+      if (Array.isArray(mockResponses)) {
+        for (const mr of mockResponses) {
+          if (mr && typeof mr === "object" && mr.response) {
+            responseOverrides.push({
+              match: mr.match,
+              response: {
+                statusCode: mr.response.statusCode,
+                headers: mr.response.headers,
+                body: mr.response.body,
+                delay: mr.response.delay,
+              },
+              once: mr.once,
+            });
+          }
+        }
+      }
 
       const { statusCode, response } = pickSuccessResponse(operation.responses);
       const responseSchema = response?.content?.["application/json"]?.schema;
@@ -175,6 +194,7 @@ export async function parseOpenApiFile(
         statusCode,
         mockDelay: typeof mockDelay === "number" ? mockDelay : undefined,
         mockStatusCode: typeof mockStatusCode === "number" ? mockStatusCode : undefined,
+        responseOverrides: responseOverrides.length > 0 ? responseOverrides : undefined,
       });
     }
   }

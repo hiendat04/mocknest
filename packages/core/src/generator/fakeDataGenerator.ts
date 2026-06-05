@@ -58,6 +58,17 @@ export function generateFakeData(
       count = fakerInstance.number.int({ min, max });
     }
 
+    if (schema.uniqueItems) {
+      const result = new Set();
+      let attempts = 0;
+      const maxAttempts = count * 2;
+      while (result.size < count && attempts < maxAttempts) {
+        result.add(generateFakeData(schema.items, context, options));
+        attempts += 1;
+      }
+      return Array.from(result);
+    }
+
     return Array.from({ length: count }, () =>
       generateFakeData(schema.items, context, options),
     );
