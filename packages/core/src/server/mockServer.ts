@@ -84,6 +84,7 @@ export interface MockServerOptions {
   errorStatusCodes?: number[];
   strictValidation?: boolean;
   stateful?: boolean;
+  statePath?: string;
   deterministic?: boolean | DeterministicOptions;
   logging?: MockServerLogOptions;
   requestHistory?: boolean | RequestHistoryOptions;
@@ -103,7 +104,7 @@ export class MockServer {
     this.app = express();
     this.app.use(cors());
     this.app.use(express.json());
-    this.dataStore = new DataStore();
+    this.dataStore = new DataStore(this.options.statePath);
     this.requestHistoryOptions = normalizeRequestHistoryOptions(
       this.options.requestHistory,
     );

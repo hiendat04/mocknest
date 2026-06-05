@@ -192,6 +192,21 @@
           "type": "boolean",
           "default": false,
           "description": "Validate incoming request path/query/body against the OpenAPI contract and return 400 with details when invalid."
+        },
+        "mocknest.stateful": {
+          "type": "boolean",
+          "default": false,
+          "description": "Toggle persistent CRUD state for mock resources."
+        },
+        "mocknest.statePath": {
+          "type": "string",
+          "default": ".mocknest/state.json",
+          "description": "Path to the file where stateful mock data will be persisted (relative to workspace root or absolute)."
+        },
+        "mocknest.proxyTarget": {
+          "type": "string",
+          "default": "",
+          "description": "Base URL to forward unhandled requests to (e.g. http://api.staging.com)."
         }
       }
     },

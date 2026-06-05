@@ -47,6 +47,19 @@ export async function startServerCommand(
   const errorStatusCodes = config.get<number[]>("errorStatusCodes", [500]);
   const strictValidation = config.get<boolean>("strictValidation", false);
   const stateful = config.get<boolean>("stateful", false);
+  const statePathConfig = config.get<string>("statePath", ".mocknest/state.json");
+
+  let statePath: string | undefined = undefined;
+  if (stateful && statePathConfig) {
+    if (require("path").isAbsolute(statePathConfig)) {
+      statePath = statePathConfig;
+    } else {
+      const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+      if (workspaceRoot) {
+        statePath = require("path").join(workspaceRoot, statePathConfig);
+      }
+    }
+  }
 
   const server = new MockServer({
     port,
@@ -59,6 +72,7 @@ export async function startServerCommand(
     errorStatusCodes,
     strictValidation,
     stateful,
+    statePath,
     onRequest: (
       method,
       path,
