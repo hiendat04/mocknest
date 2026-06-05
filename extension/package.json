@@ -81,6 +81,16 @@
         "icon": "$(pulse)"
       },
       {
+        "command": "mocknest.setChaosJitter",
+        "title": "MockNest: Set Chaos Delay Jitter",
+        "icon": "$(pulse)"
+      },
+      {
+        "command": "mocknest.setErrorStatusCodes",
+        "title": "MockNest: Set Error Status Codes",
+        "icon": "$(error)"
+      },
+      {
         "command": "mocknest.resetChaosSettings",
         "title": "MockNest: Reset Chaos Settings",
         "icon": "$(discard)"
@@ -159,7 +169,24 @@
           "default": 0,
           "minimum": 0,
           "maximum": 1,
-          "description": "Probability (0 to 1) of a request randomly failing with a 500 error to simulate network chaos."
+          "description": "Probability (0 to 1) of a request randomly failing with a simulated error to simulate network chaos."
+        },
+        "mocknest.delayJitter": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Probability of adding random jitter to the response delay. 0 means fixed delay, 1 means max jitter."
+        },
+        "mocknest.errorStatusCodes": {
+          "type": "array",
+          "items": {
+            "type": "number"
+          },
+          "default": [
+            500
+          ],
+          "description": "List of HTTP status codes to randomly return when an error is simulated."
         },
         "mocknest.strictValidation": {
           "type": "boolean",
@@ -245,6 +272,16 @@
         {
           "command": "mocknest.setChaosErrorRate",
           "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosErrorRate",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.setChaosJitter",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosJitter",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.setErrorStatusCodes",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.errorStatusCodes",
           "group": "inline"
         },
         {

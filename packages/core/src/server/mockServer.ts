@@ -79,7 +79,9 @@ export interface MockServerOptions {
     requestHeaders?: Record<string, any>,
   ) => void;
   delay?: number;
+  delayJitter?: number;
   errorRate?: number;
+  errorStatusCodes?: number[];
   strictValidation?: boolean;
   stateful?: boolean;
   deterministic?: boolean | DeterministicOptions;
@@ -195,10 +197,7 @@ export class MockServer {
           : (route.mockStatusCode ?? route.statusCode);
 
         const override = this.selectResponseOverride(req, route);
-        const delay = override?.response.delay ?? baseDelay;
         const statusCode = override?.response.statusCode ?? baseStatusCode;
-
-        const bestResponse = findBestResponse(route, statusCode);
 
         const deterministicOptions = normalizeDeterministicOptions(
           this.options.deterministic,
@@ -220,6 +219,17 @@ export class MockServer {
         const fakeDataOptions = deterministicRandom && deterministicFaker
           ? { random: deterministicRandom, faker: deterministicFaker }
           : undefined;
+
+        const baseDelayValue = override?.response.delay ?? baseDelay;
+        
+        let delay = baseDelayValue;
+        if (this.options.delayJitter && this.options.delayJitter > 0) {
+          const jitterRandom = (deterministicRandom ?? Math.random)();
+          const jitterAmount = Math.floor(jitterRandom * baseDelayValue * this.options.delayJitter);
+          delay = baseDelayValue + jitterAmount;
+        }
+
+        const bestResponse = findBestResponse(route, statusCode);
 
         const requestLog = buildRequestLog(req, route.method, loggingOptions);
         if (requestLog) {
@@ -411,10 +421,16 @@ export class MockServer {
         if (this.options.errorRate && this.options.errorRate > 0) {
           const random = (deterministicRandom ?? Math.random)();
           if (random < this.options.errorRate) {
+            const errorCodes = this.options.errorStatusCodes && this.options.errorStatusCodes.length > 0
+              ? this.options.errorStatusCodes
+              : [500];
+            const errorRandom = (deterministicRandom ?? Math.random)();
+            const errorCode = errorCodes[Math.floor(errorRandom * errorCodes.length)];
+            
             console.error(
-              `[MockNest] Simulated 500 Error for ${route.method} ${req.path}`,
+              `[MockNest] Simulated ${errorCode} Error for ${route.method} ${req.path}`,
             );
-            sendJson(500, { error: "Internal Server Error (Simulated)" });
+            sendJson(errorCode, { error: `Internal Server Error (Simulated: ${errorCode})` });
             return;
           }
         }

@@ -42,7 +42,9 @@ export async function startServerCommand(
   routeTreeProvider.refresh(routes);
 
   const delay = config.get<number>("delay", 20);
+  const delayJitter = config.get<number>("delayJitter", 0);
   const errorRate = config.get<number>("errorRate", 0);
+  const errorStatusCodes = config.get<number[]>("errorStatusCodes", [500]);
   const strictValidation = config.get<boolean>("strictValidation", false);
   const stateful = config.get<boolean>("stateful", false);
 
@@ -52,7 +54,9 @@ export async function startServerCommand(
     api,
     proxyTarget: proxyTarget || undefined,
     delay,
+    delayJitter,
     errorRate,
+    errorStatusCodes,
     strictValidation,
     stateful,
     onRequest: (

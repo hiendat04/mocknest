@@ -39,11 +39,13 @@ export class ChaosControlProvider
   getChildren(): ChaosControlItem[] {
     const config = vscode.workspace.getConfiguration("mocknest");
     const delay = config.get<number>("delay", DEFAULT_DELAY_MS);
+    const delayJitter = config.get<number>("delayJitter", 0);
     const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
+    const errorStatusCodes = config.get<number[]>("errorStatusCodes", [500]);
     const strictValidation = config.get<boolean>("strictValidation", false);
     const stateful = config.get<boolean>("stateful", false);
     const proxyTarget = config.get<string>("proxyTarget", "");
-    const isChaosMode = delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE;
+    const isChaosMode = delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE || delayJitter > 0;
 
     return [
       new ChaosControlItem(
@@ -79,12 +81,28 @@ export class ChaosControlProvider
         "clock",
       ),
       new ChaosControlItem(
+        "Delay Jitter",
+        `${Math.round(delayJitter * 100)}%`,
+        "mocknest.setChaosJitter",
+        "mocknest.chaosJitter",
+        "Set probability of adding random jitter to the response delay",
+        "pulse",
+      ),
+      new ChaosControlItem(
         "Failure Rate",
         `${Math.round(errorRate * 100)}%`,
         "mocknest.setChaosErrorRate",
         "mocknest.chaosErrorRate",
-        "Set percentage of simulated 500 responses",
+        "Set percentage of simulated failed responses",
         "pulse",
+      ),
+      new ChaosControlItem(
+        "Error Status",
+        errorStatusCodes.join(", "),
+        "mocknest.setErrorStatusCodes",
+        "mocknest.errorStatusCodes",
+        "Set HTTP status codes to return when an error is simulated",
+        "error",
       ),
       new ChaosControlItem(
         "Contract Validation",

@@ -288,16 +288,19 @@ export function activate(context: vscode.ExtensionContext) {
       const config = vscode.workspace.getConfiguration("mocknest");
       const delay = config.get<number>("delay", DEFAULT_DELAY_MS);
       const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
+      const delayJitter = config.get<number>("delayJitter", 0);
       const isChaosEnabled =
-        delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE;
+        delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE || delayJitter > 0;
 
       if (isChaosEnabled) {
         await config.update("delay", DEFAULT_DELAY_MS, vscode.ConfigurationTarget.Workspace);
         await config.update("errorRate", DEFAULT_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
+        await config.update("delayJitter", 0, vscode.ConfigurationTarget.Workspace);
         vscode.window.showInformationMessage("Chaos mode disabled.");
       } else {
         await config.update("delay", CHAOS_DELAY_MS, vscode.ConfigurationTarget.Workspace);
         await config.update("errorRate", CHAOS_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
+        await config.update("delayJitter", 0.5, vscode.ConfigurationTarget.Workspace);
         vscode.window.showInformationMessage("Chaos mode enabled.");
       }
 
@@ -367,10 +370,76 @@ export function activate(context: vscode.ExtensionContext) {
       chaosControlProvider.refresh();
     }),
 
+    vscode.commands.registerCommand("mocknest.setChaosJitter", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<number>("delayJitter", 0);
+
+      const input = await vscode.window.showInputBox({
+        title: "Set Delay Jitter",
+        prompt: "Enter decimal (0-1) or percentage (0-100)",
+        value: String(current),
+        validateInput: (value) => {
+          const parsed = parseFailureRateInput(value);
+          if (parsed === undefined) {
+            return "Enter value in range 0-1 or 0-100%";
+          }
+          return undefined;
+        },
+      });
+
+      if (!input) {
+        return;
+      }
+
+      const parsed = parseFailureRateInput(input);
+      if (parsed === undefined) {
+        return;
+      }
+
+      await config.update(
+        "delayJitter",
+        parsed,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand("mocknest.setErrorStatusCodes", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<number[]>("errorStatusCodes", [500]);
+
+      const input = await vscode.window.showInputBox({
+        title: "Set Error Status Codes",
+        prompt: "Comma-separated list of HTTP status codes (e.g. 500, 503, 429)",
+        value: current.join(", "),
+        validateInput: (value) => {
+          const parts = value.split(",").map((p) => p.trim());
+          if (parts.some((p) => isNaN(Number(p)) || !Number.isInteger(Number(p)) || Number(p) < 100 || Number(p) > 599)) {
+            return "Enter a comma-separated list of valid HTTP status codes (100-599)";
+          }
+          return undefined;
+        },
+      });
+
+      if (input === undefined) {
+        return;
+      }
+
+      const parsed = input.split(",").map((p) => Number(p.trim())).filter((p) => p > 0);
+      await config.update(
+        "errorStatusCodes",
+        parsed.length > 0 ? parsed : [500],
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+    }),
+
     vscode.commands.registerCommand("mocknest.resetChaosSettings", async () => {
       const config = vscode.workspace.getConfiguration("mocknest");
       await config.update("delay", DEFAULT_DELAY_MS, vscode.ConfigurationTarget.Workspace);
       await config.update("errorRate", DEFAULT_ERROR_RATE, vscode.ConfigurationTarget.Workspace);
+      await config.update("delayJitter", 0, vscode.ConfigurationTarget.Workspace);
+      await config.update("errorStatusCodes", [500], vscode.ConfigurationTarget.Workspace);
       chaosControlProvider.refresh();
       vscode.window.showInformationMessage("Chaos settings reset to defaults.");
     }),
@@ -532,7 +601,9 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.workspace.onDidChangeConfiguration((e) => {
       if (
         e.affectsConfiguration("mocknest.delay") ||
+        e.affectsConfiguration("mocknest.delayJitter") ||
         e.affectsConfiguration("mocknest.errorRate") ||
+        e.affectsConfiguration("mocknest.errorStatusCodes") ||
         e.affectsConfiguration("mocknest.strictValidation") ||
         e.affectsConfiguration("mocknest.stateful") ||
         e.affectsConfiguration("mocknest.proxyTarget")
