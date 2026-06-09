@@ -712,4 +712,175 @@ describe("MockServer", () => {
     expect(res2.status).toBe(200);
     expect(body2).toHaveProperty("ok");
   });
+
+  it("should apply delay jitter in chaos mode", async () => {
+    const baseDelay = 50;
+    server = new MockServer({
+      port: 3021,
+      delay: baseDelay,
+      delayJitter: 1.0, // Max jitter up to +100%
+      routes: [
+        {
+          method: "GET",
+          path: "/jitter",
+          statusCode: 200,
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    // With jitter=1.0 and delay=50, actual delay should be in [50, 100]ms range.
+    // We'll sample a few times.
+    const durations = [];
+    for (let i = 0; i < 5; i++) {
+      const start = Date.now();
+      await fetch("http://localhost:3021/jitter");
+      durations.push(Date.now() - start);
+    }
+
+    const hasJitter = durations.some(d => d > baseDelay + 5);
+    expect(hasJitter).toBe(true);
+    expect(Math.max(...durations)).toBeGreaterThan(baseDelay);
+  });
+
+  it("should return varied error status codes in chaos mode", async () => {
+    const errorStatusCodes = [429, 503];
+    server = new MockServer({
+      port: 3022,
+      errorRate: 1.0, // 100% error rate for testing
+      errorStatusCodes,
+      routes: [
+        {
+          method: "GET",
+          path: "/chaos-errors",
+          statusCode: 200,
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const statuses = new Set();
+    for (let i = 0; i < 10; i++) {
+      const res = await fetch("http://localhost:3022/chaos-errors");
+      statuses.add(res.status);
+    }
+
+    expect(statuses.has(429) || statuses.has(503)).toBe(true);
+    expect(statuses.has(200)).toBe(false);
+  });
+
+  it("should persist and reload stateful data", async () => {
+    const fs = await import("fs");
+    const path = await import("path");
+    const tempStateFile = path.join(__dirname, `temp-state-${Date.now()}.json`);
+
+    try {
+      // 1. Start server, add item, then stop
+      server = new MockServer({
+        port: 3023,
+        stateful: true,
+        statePath: tempStateFile,
+        routes: [
+          {
+            method: "POST",
+            path: "/items",
+            statusCode: 201,
+            responseSchema: { type: "object", properties: { id: { type: "string" }, name: { type: "string" } } },
+            responses: [],
+          },
+          {
+            method: "GET",
+            path: "/items",
+            statusCode: 200,
+            responses: [],
+          }
+        ],
+      });
+      await server.start();
+      await fetch("http://localhost:3023/items", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: "persistent-item" }),
+      });
+      await server.stop();
+      server = null;
+
+      // Verify file was created
+      expect(fs.existsSync(tempStateFile)).toBe(true);
+
+      // 2. Restart server with same state file and check if item exists
+      server = new MockServer({
+        port: 3024,
+        stateful: true,
+        statePath: tempStateFile,
+        routes: [
+          {
+            method: "GET",
+            path: "/items",
+            statusCode: 200,
+            responses: [],
+          }
+        ],
+      });
+      await server.start();
+      const res = await fetch("http://localhost:3024/items");
+      const items: any[] = await res.json();
+      expect(items).toHaveLength(1);
+      expect(items[0].name).toBe("persistent-item");
+
+    } finally {
+      if (fs.existsSync(tempStateFile)) {
+        fs.unlinkSync(tempStateFile);
+      }
+    }
+  });
+
+  it("should match x-mock-responses scenarios from ParsedRoute", async () => {
+    server = new MockServer({
+      port: 3025,
+      routes: [
+        {
+          method: "GET",
+          path: "/scenarios",
+          statusCode: 200,
+          responseSchema: { type: "object", properties: { default: { type: "boolean" } } },
+          responses: [],
+          responseOverrides: [
+            {
+              match: { query: { scenario: "error" } },
+              response: { statusCode: 500, body: { error: "scenario-failed" } }
+            },
+            {
+              match: { headers: { "x-scenario": "empty" } },
+              response: { statusCode: 200, body: [] }
+            }
+          ]
+        },
+      ],
+    });
+
+    await server.start();
+
+    // 1. Match query scenario
+    const res1 = await fetch("http://localhost:3025/scenarios?scenario=error");
+    expect(res1.status).toBe(500);
+    expect(await res1.json()).toEqual({ error: "scenario-failed" });
+
+    // 2. Match header scenario
+    const res2 = await fetch("http://localhost:3025/scenarios", {
+      headers: { "x-scenario": "empty" }
+    });
+    expect(res2.status).toBe(200);
+    expect(await res2.json()).toEqual([]);
+
+    // 3. Default response
+    const res3 = await fetch("http://localhost:3025/scenarios");
+    expect(res3.status).toBe(200);
+    const body3: any = await res3.json();
+    expect(body3.default).toBeDefined();
+  });
 });

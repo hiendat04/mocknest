@@ -135,6 +135,10 @@ export class MockServer {
         res.json({ ok: true });
       });
     }
+
+    this.app.get("/__mocknest/state", (req, res) => {
+      res.json(this.dataStore.getAll());
+    });
   }
 
   private getSwaggerUiHtml(): string {

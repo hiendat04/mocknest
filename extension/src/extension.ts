@@ -12,6 +12,7 @@ import {
   RequestLogItem,
   RequestLogProvider,
 } from "./providers/requestLogProvider";
+import { StateExplorerProvider, StateItem } from "./providers/stateExplorerProvider";
 import {
   CHAOS_DELAY_MS,
   CHAOS_ERROR_RATE,
@@ -30,6 +31,7 @@ export function activate(context: vscode.ExtensionContext) {
   const routeTreeProvider = new RouteTreeProvider();
   const requestLogProvider = new RequestLogProvider();
   const chaosControlProvider = new ChaosControlProvider();
+  const stateExplorerProvider = new StateExplorerProvider();
   const persistedEntries = context.workspaceState.get<RequestLogEntry[]>(
     REQUEST_LOG_STATE_KEY,
     [],
@@ -46,6 +48,10 @@ export function activate(context: vscode.ExtensionContext) {
   vscode.window.registerTreeDataProvider(
     "mocknest.chaosControls",
     chaosControlProvider,
+  );
+  vscode.window.registerTreeDataProvider(
+    "mocknest.stateExplorer",
+    stateExplorerProvider,
   );
 
   const statusBar = vscode.window.createStatusBarItem(
@@ -116,6 +122,7 @@ export function activate(context: vscode.ExtensionContext) {
           (server, port, requestInfo) => {
             mockServer = server;
             updateStatusBar(true, port);
+            void stateExplorerProvider.refresh();
             if (requestInfo) {
               requestLogProvider.append(
                 requestInfo.method,
@@ -125,6 +132,7 @@ export function activate(context: vscode.ExtensionContext) {
                 requestInfo.responseBody,
                 requestInfo.requestHeaders,
               );
+              void stateExplorerProvider.refresh();
               void persistRequestLog(context, requestLogProvider);
             } else {
               ApiTesterPanel.syncRoutes(routeTreeProvider);
@@ -141,6 +149,7 @@ export function activate(context: vscode.ExtensionContext) {
         await stopServerCommand(mockServer, isRestart);
         mockServer = null;
         routeTreeProvider.clear();
+        stateExplorerProvider.clear();
         updateStatusBar(false);
       },
     ),
@@ -559,6 +568,15 @@ export function activate(context: vscode.ExtensionContext) {
         await restartServerCommand(mockServer, informationMessage);
       },
     ),
+
+    vscode.commands.registerCommand("mocknest.refreshState", async () => {
+      await stateExplorerProvider.refresh();
+      vscode.window.showInformationMessage("MockNest state explorer refreshed.");
+    }),
+
+    vscode.commands.registerCommand("mocknest.openStateExplorer", () => {
+      void vscode.commands.executeCommand("mocknest.stateExplorer.focus");
+    }),
   );
 
   // Watch for changes in the OpenAPI spec file and restart the server.

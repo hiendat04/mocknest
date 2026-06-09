@@ -109,6 +109,16 @@
         "command": "mocknest.exportRuntimeConfig",
         "title": "MockNest: Export Runtime Config JSON",
         "icon": "$(save-as)"
+      },
+      {
+        "command": "mocknest.refreshState",
+        "title": "MockNest: Refresh State Explorer",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "mocknest.openStateExplorer",
+        "title": "MockNest: Open State Explorer",
+        "icon": "$(database)"
       }
     ],
     "viewsContainers": {
@@ -136,6 +146,11 @@
           "id": "mocknest.chaosControls",
           "name": "Chaos Controls",
           "icon": "$(flame)"
+        },
+        {
+          "id": "mocknest.stateExplorer",
+          "name": "State Explorer",
+          "icon": "$(database)"
         }
       ]
     },
@@ -256,6 +271,11 @@
           "command": "mocknest.resetChaosSettings",
           "when": "view == mocknest.chaosControls",
           "group": "navigation@3"
+        },
+        {
+          "command": "mocknest.refreshState",
+          "when": "view == mocknest.stateExplorer",
+          "group": "navigation@1"
         }
       ],
       "view/item/context": [

@@ -95,6 +95,10 @@ export class DataStore {
     return collection.find((item) => String(item[idField]) === String(idValue));
   }
 
+  getAll(): Record<string, any[]> {
+    return Object.fromEntries(this.collections);
+  }
+
   clear(): void {
     this.collections.clear();
     this.save();

@@ -11,8 +11,10 @@ export function generateFakeData(
   schema: OpenAPIV3.SchemaObject | any,
   context?: Record<string, any>,
   options?: FakeDataOptions,
+  depth: number = 0,
 ): any {
   if (!schema) return {};
+  if (depth > 10) return {}; // Prevent infinite recursion for circular schemas
 
   const rng = options?.random ?? Math.random;
   const fakerInstance = options?.faker ?? faker;
@@ -30,7 +32,7 @@ export function generateFakeData(
   // Handle composition keywords
   if (schema.allOf) {
     return schema.allOf.reduce((acc: any, subSchema: any) => {
-      const generated = generateFakeData(subSchema, context, options);
+      const generated = generateFakeData(subSchema, context, options, depth + 1);
       return typeof generated === "object" && generated !== null
         ? { ...acc, ...generated }
         : generated;
@@ -40,7 +42,7 @@ export function generateFakeData(
   if (schema.oneOf || schema.anyOf) {
     const list = schema.oneOf || schema.anyOf;
     const selected = list[Math.floor(rng() * list.length)];
-    return generateFakeData(selected, context, options);
+    return generateFakeData(selected, context, options, depth + 1);
   }
 
   if (resolvedType === "array") {
@@ -63,14 +65,14 @@ export function generateFakeData(
       let attempts = 0;
       const maxAttempts = count * 2;
       while (result.size < count && attempts < maxAttempts) {
-        result.add(generateFakeData(schema.items, context, options));
+        result.add(generateFakeData(schema.items, context, options, depth + 1));
         attempts += 1;
       }
       return Array.from(result);
     }
 
     return Array.from({ length: count }, () =>
-      generateFakeData(schema.items, context, options),
+      generateFakeData(schema.items, context, options, depth + 1),
     );
   }
 
@@ -91,6 +93,7 @@ export function generateFakeData(
         context,
         rng,
         fakerInstance,
+        depth,
       );
     }
 
@@ -116,13 +119,13 @@ export function generateFakeData(
         const key = `extraField${counter}`;
         counter += 1;
         if (result[key] !== undefined) continue;
-        result[key] = generateFakeData(additionalValueSchema, context, options);
+        result[key] = generateFakeData(additionalValueSchema, context, options, depth + 1);
       }
     }
     return result;
   }
 
-  return generateValueFromField("value", schema, context, rng, fakerInstance);
+  return generateValueFromField("value", schema, context, rng, fakerInstance, depth);
 }
 
 function generateValueFromField(
@@ -131,6 +134,7 @@ function generateValueFromField(
   context?: Record<string, any>,
   rng: () => number = Math.random,
   fakerInstance: Faker = faker,
+  depth: number = 0,
 ): any {
   const resolvedType = resolveSchemaType(schema, rng, fakerInstance);
   if (resolvedType === "null") return null;
