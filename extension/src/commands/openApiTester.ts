@@ -47,6 +47,7 @@ interface SendRequestPayload {
 interface PresetRoute {
   method: string;
   path: string;
+  scenario?: any;
 }
 
 export class ApiTesterPanel {
@@ -677,21 +678,53 @@ export class ApiTesterPanel {
         const payload = message.payload || {};
         const method = payload.method ? String(payload.method).toUpperCase() : "";
         const path = payload.path ? String(payload.path) : "";
+        const scenario = payload.scenario;
+
         const matchingIndex = routeOptions.findIndex((route) => {
           return route.method === method && route.path === path;
         });
 
         if (matchingIndex >= 0) {
           routeSelect.value = String(matchingIndex);
-          applyRoute(routeOptions[matchingIndex], true);
-          return;
+          applyRoute(routeOptions[matchingIndex], !scenario);
+        } else {
+          if (method) {
+            methodInput.value = method;
+          }
+          if (path) {
+            pathInput.value = path;
+          }
         }
 
-        if (method) {
-          methodInput.value = method;
-        }
-        if (path) {
-          pathInput.value = path;
+        if (scenario) {
+          if (scenario.match) {
+            if (scenario.match.headers) {
+              headersInput.value = JSON.stringify(scenario.match.headers, null, 2);
+            }
+            if (scenario.match.body) {
+              bodyInput.value = JSON.stringify(scenario.match.body, null, 2);
+            }
+            if (scenario.match.query) {
+              const searchParams = new URLSearchParams();
+              for (const [key, value] of Object.entries(scenario.match.query)) {
+                searchParams.append(key, String(value));
+              }
+              const qs = searchParams.toString();
+              if (qs) {
+                pathInput.value = path + (path.includes("?") ? "&" : "?") + qs;
+              }
+            }
+          }
+          if (scenario.response) {
+            if (scenario.response.delay) {
+              mockDelayInput.value = String(scenario.response.delay);
+            }
+            if (scenario.response.statusCode) {
+              mockStatusCodeInput.value = String(scenario.response.statusCode);
+            }
+          }
+          
+          renderRouteInsight(getSelectedRoute());
         }
         return;
       }

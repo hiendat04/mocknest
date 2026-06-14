@@ -99,6 +99,11 @@ export class DataStore {
     return Object.fromEntries(this.collections);
   }
 
+  clearCollection(name: string): void {
+    this.collections.set(name, []);
+    this.save();
+  }
+
   clear(): void {
     this.collections.clear();
     this.save();

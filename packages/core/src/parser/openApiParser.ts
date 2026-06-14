@@ -26,6 +26,7 @@ export interface ResponseOverrideMatch {
 
 export interface ResponseOverrideRule {
   id?: string;
+  name?: string;
   method?: string;
   path?: string;
   match?: ResponseOverrideMatch;
@@ -91,6 +92,7 @@ export async function parseOpenApiFile(
         for (const mr of mockResponses) {
           if (mr && typeof mr === "object" && mr.response) {
             responseOverrides.push({
+              name: mr.name,
               match: mr.match,
               response: {
                 statusCode: mr.response.statusCode,

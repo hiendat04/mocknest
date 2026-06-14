@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { RouteItem, RouteTreeProvider } from "./providers/routeTreeProvider";
+import { RouteItem, RouteTreeProvider, ScenarioItem } from "./providers/routeTreeProvider";
 import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
 import { MockServer } from "mocknest-core";
@@ -212,6 +212,8 @@ export function activate(context: vscode.ExtensionContext) {
       "mocknest.openApiTester",
       (item?: any) => {
         const isRoute = item instanceof RouteItem;
+        const isScenario = item instanceof ScenarioItem;
+        
         ApiTesterPanel.open(
           context,
           routeTreeProvider,
@@ -219,6 +221,12 @@ export function activate(context: vscode.ExtensionContext) {
             ? {
                 method: item.route.method,
                 path: item.route.path,
+              }
+            : isScenario
+            ? {
+                method: item.route.method,
+                path: item.route.path,
+                scenario: item.scenario,
               }
             : undefined,
         );
@@ -453,6 +461,29 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showInformationMessage("Chaos settings reset to defaults.");
     }),
 
+    vscode.commands.registerCommand("mocknest.setProxyTarget", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<string>("proxyTarget", "");
+
+      const input = await vscode.window.showInputBox({
+        title: "Set Proxy Fallback Target",
+        prompt: "Enter base URL to forward unhandled requests (e.g. http://api.staging.com) or leave empty to disable.",
+        value: current,
+        placeHolder: "http://localhost:8080",
+      });
+
+      if (input === undefined) {
+        return;
+      }
+
+      await config.update(
+        "proxyTarget",
+        input.trim(),
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+    }),
+
     vscode.commands.registerCommand("mocknest.toggleStrictValidation", async () => {
       const config = vscode.workspace.getConfiguration("mocknest");
       const current = config.get<boolean>("strictValidation", false);
@@ -576,6 +607,30 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("mocknest.openStateExplorer", () => {
       void vscode.commands.executeCommand("mocknest.stateExplorer.focus");
+    }),
+
+    vscode.commands.registerCommand("mocknest.clearStateCollection", async (item: StateItem) => {
+      if (!item.collectionName) return;
+      const answer = await vscode.window.showWarningMessage(
+        `Are you sure you want to clear the collection '${item.collectionName}'?`,
+        { modal: true },
+        "Clear All Items"
+      );
+      if (answer === "Clear All Items") {
+        await stateExplorerProvider.clearCollection(item.collectionName);
+        vscode.window.showInformationMessage(`Collection '${item.collectionName}' cleared.`);
+      }
+    }),
+
+    vscode.commands.registerCommand("mocknest.deleteStateItem", async (item: StateItem) => {
+      if (!item.collectionName || !item.data) return;
+      const id = item.data.id || item.data._id;
+      if (id === undefined) {
+        vscode.window.showErrorMessage("Cannot delete item without an ID field.");
+        return;
+      }
+      await stateExplorerProvider.deleteItem(item.collectionName, id);
+      vscode.window.showInformationMessage(`Item '${id}' deleted.`);
     }),
   );
 

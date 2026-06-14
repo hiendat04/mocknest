@@ -119,6 +119,16 @@
         "command": "mocknest.openStateExplorer",
         "title": "MockNest: Open State Explorer",
         "icon": "$(database)"
+      },
+      {
+        "command": "mocknest.clearStateCollection",
+        "title": "MockNest: Clear Collection",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "mocknest.deleteStateItem",
+        "title": "MockNest: Delete Item",
+        "icon": "$(trash)"
       }
     ],
     "viewsContainers": {
@@ -327,6 +337,16 @@
         {
           "command": "mocknest.resetChaosSettings",
           "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosReset",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.clearStateCollection",
+          "when": "view == mocknest.stateExplorer && viewItem == collection",
+          "group": "inline"
+        },
+        {
+          "command": "mocknest.deleteStateItem",
+          "when": "view == mocknest.stateExplorer && viewItem == item",
           "group": "inline"
         }
       ]

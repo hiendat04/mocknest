@@ -139,6 +139,17 @@ export class MockServer {
     this.app.get("/__mocknest/state", (req, res) => {
       res.json(this.dataStore.getAll());
     });
+
+    this.app.delete("/__mocknest/state/:collection", (req, res) => {
+      this.dataStore.clearCollection(req.params.collection);
+      res.json({ ok: true });
+    });
+
+    this.app.delete("/__mocknest/state/:collection/:id", (req, res) => {
+      const { collection, id } = req.params;
+      this.dataStore.deleteItem(collection, "id", id);
+      res.json({ ok: true });
+    });
   }
 
   private getSwaggerUiHtml(): string {
@@ -459,10 +470,13 @@ export class MockServer {
     }
 
     this.app.use(async (req: Request, res: Response) => {
+      const historyOptions = this.requestHistoryOptions;
+
       if (this.options.proxyTarget) {
         const targetUrl = `${this.options.proxyTarget.replace(/\/+$/, "")}${req.url}`;
         console.log(`[MockNest] Proxying to ${targetUrl}`);
 
+        const startedAt = Date.now();
         try {
           const proxyRes = await fetch(targetUrl, {
             method: req.method,
@@ -470,8 +484,36 @@ export class MockServer {
             body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
           });
 
+          const durationMs = Date.now() - startedAt;
           const data = await proxyRes.text();
           
+          let responseBody: any;
+          try {
+            responseBody = JSON.parse(data);
+          } catch {
+            responseBody = data;
+          }
+
+          this.options.onRequest?.(
+            req.method,
+            req.path,
+            proxyRes.status,
+            req.body,
+            responseBody,
+            req.headers,
+          );
+
+          this.recordRequest(
+            buildRequestHistoryEntry(
+              req,
+              req.method,
+              proxyRes.status,
+              responseBody,
+              historyOptions,
+              this.requestIdCounter + 1,
+            ),
+          );
+
           // Copy headers back
           proxyRes.headers.forEach((value, key) => {
             if (!["content-encoding", "transfer-encoding"].includes(key.toLowerCase())) {

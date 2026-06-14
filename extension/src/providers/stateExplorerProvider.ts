@@ -5,6 +5,7 @@ export class StateItem extends vscode.TreeItem {
     public readonly label: string,
     public readonly collapsibleState: vscode.TreeItemCollapsibleState,
     public readonly contextValue: string,
+    public readonly collectionName?: string,
     public readonly data?: any,
   ) {
     super(label, collapsibleState);
@@ -38,6 +39,7 @@ export class StateExplorerProvider implements vscode.TreeDataProvider<StateItem>
             vscode.TreeItemCollapsibleState.Collapsed,
             "collection",
             collectionName,
+            collectionName,
           ),
       );
     }
@@ -51,6 +53,7 @@ export class StateExplorerProvider implements vscode.TreeDataProvider<StateItem>
           `Item ${id}`,
           vscode.TreeItemCollapsibleState.None,
           "item",
+          collectionName,
           item,
         );
       });
@@ -75,6 +78,38 @@ export class StateExplorerProvider implements vscode.TreeDataProvider<StateItem>
     }
     
     this.onDidChangeTreeDataEmitter.fire();
+  }
+
+  async clearCollection(collectionName: string): Promise<void> {
+    const config = vscode.workspace.getConfiguration("mocknest");
+    const port = config.get<number>("port", 3001);
+    
+    try {
+      const response = await fetch(`http://localhost:${port}/__mocknest/state/${collectionName}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        await this.refresh();
+      }
+    } catch {
+      // Ignore
+    }
+  }
+
+  async deleteItem(collectionName: string, id: any): Promise<void> {
+    const config = vscode.workspace.getConfiguration("mocknest");
+    const port = config.get<number>("port", 3001);
+    
+    try {
+      const response = await fetch(`http://localhost:${port}/__mocknest/state/${collectionName}/${id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        await this.refresh();
+      }
+    } catch {
+      // Ignore
+    }
   }
 
   clear(): void {

@@ -1,9 +1,30 @@
 import * as vscode from "vscode";
-import { ParsedRoute } from "mocknest-core";
+import { ParsedRoute, ResponseOverrideRule } from "mocknest-core";
+
+export class ScenarioItem extends vscode.TreeItem {
+  constructor(public readonly route: ParsedRoute, public readonly scenario: ResponseOverrideRule) {
+    const label = scenario.name || `Scenario (${scenario.response.statusCode})`;
+    super(label, vscode.TreeItemCollapsibleState.None);
+
+    this.description = scenario.response.statusCode ? `Status: ${scenario.response.statusCode}` : "";
+    this.tooltip = `Matches: ${JSON.stringify(scenario.match || "Any")}`;
+    this.contextValue = "scenarioItem";
+    this.iconPath = new vscode.ThemeIcon("beaker");
+    this.command = {
+      command: "mocknest.openApiTester",
+      title: "Open in API Tester",
+      arguments: [this],
+    };
+  }
+}
 
 export class RouteItem extends vscode.TreeItem {
   constructor(public readonly route: ParsedRoute) {
-    super(`${route.method} ${route.path}`, vscode.TreeItemCollapsibleState.None);
+    const hasScenarios = route.responseOverrides && route.responseOverrides.length > 0;
+    super(
+      `${route.method} ${route.path}`,
+      hasScenarios ? vscode.TreeItemCollapsibleState.Collapsed : vscode.TreeItemCollapsibleState.None
+    );
 
     // Keep method color mapping predictable in the sidebar.
     const color = methodColor(route.method);
@@ -31,7 +52,7 @@ export class TagItem extends vscode.TreeItem {
   }
 }
 
-type TreeElement = TagItem | RouteItem;
+type TreeElement = TagItem | RouteItem | ScenarioItem;
 
 export class RouteTreeProvider implements vscode.TreeDataProvider<TreeElement> {
   private _onDidChangeTreeData = new vscode.EventEmitter<void>();
@@ -43,7 +64,7 @@ export class RouteTreeProvider implements vscode.TreeDataProvider<TreeElement> {
     return element;
   }
 
-  getChildren(element?: TreeElement): TreeElement[] {
+  getChildren(element?: TreeElement): TreeElement[] | Thenable<TreeElement[]> {
     if (!element) {
       // Root level: Group routes by tags
       const tagMap = new Map<string, ParsedRoute[]>();
@@ -85,6 +106,12 @@ export class RouteTreeProvider implements vscode.TreeDataProvider<TreeElement> {
 
     if (element instanceof TagItem) {
       return element.routes.map((r) => new RouteItem(r));
+    }
+
+    if (element instanceof RouteItem) {
+      return (element.route.responseOverrides || []).map(
+        (scenario) => new ScenarioItem(element.route, scenario)
+      );
     }
 
     return [];
