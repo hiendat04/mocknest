@@ -18,6 +18,28 @@ Current repository state includes:
 
 This is an active foundation. The project is usable for local experimentation and is structured for incremental feature delivery.
 
+## Usage
+
+### VS Code Extension
+Install the MockNest extension and click the "MockNest" icon in the Activity Bar. You can start the server, browse routes, and explore state directly from VS Code.
+
+### CLI (Standalone)
+You can also run MockNest directly from your terminal using the built-in CLI:
+
+```bash
+# Run using npx (from workspace root)
+npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
+```
+
+**Options:**
+- `--spec, -s <path>`: Path to OpenAPI spec file (required)
+- `--port, -p <number>`: Port to run the server on (default: 3001)
+- `--stateful`: Enable stateful mocking (persistent CRUD)
+- `--state-path <path>`: Path to persist state data
+- `--chaos-latency <ms>`: Global latency for all responses
+- `--chaos-error-rate <0-1>`: Probability of simulated failures
+- `--strict`: Enable strict request validation
+
 ## Architecture
 
 ### Core package (`packages/core`)
