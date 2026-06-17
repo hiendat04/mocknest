@@ -2,7 +2,7 @@ import express, { Express, Request, Response } from "express";
 import cors from "cors";
 import { Server } from "http";
 import { OpenAPIV3 } from "openapi-types";
-import { Faker, en } from "@faker-js/faker";
+import { Faker, en, faker } from "@faker-js/faker";
 import {
   ParsedRoute,
   ParsedResponse,
@@ -217,7 +217,7 @@ export class MockServer {
       const method = route.method.toLowerCase() as keyof Express;
 
       // Dispatch handlers from the HTTP verb string in the parsed route.
-      (this.app as any)[method](route.path, (req: Request, res: Response) => {
+      (this.app as any)[method](route.path, async (req: Request, res: Response) => {
         const loggingOptions = normalizeLoggingOptions(this.options.logging);
         const historyOptions = this.requestHistoryOptions;
 
@@ -442,6 +442,24 @@ export class MockServer {
                 : {};
         }
 
+        // Apply response templating
+        const templateContext = {
+          req: {
+            body: req.body,
+            query: req.query,
+            params: req.params,
+            headers: req.headers,
+          },
+          faker: deterministicFaker ?? faker,
+        };
+
+        fakeBody = processResponseTemplates(fakeBody, templateContext);
+
+        const templatedHeaders = processResponseTemplates(
+          mergeHeaders(responseHeaders, override?.response.headers),
+          templateContext
+        );
+
         if (this.options.strictValidation && responseSchema && !isReferenceObject(responseSchema)) {
           const responseErrors = validateSchemaValue(fakeBody, responseSchema, "response");
           if (responseErrors.length > 0) {
@@ -485,8 +503,7 @@ export class MockServer {
         }
 
         // Artificial delay to simulate real network.
-        const mergedHeaders = mergeHeaders(responseHeaders, override?.response.headers);
-        sendJson(statusCode, fakeBody, mergedHeaders);
+        sendJson(statusCode, fakeBody, templatedHeaders);
       });
     }
 
@@ -745,6 +762,53 @@ function getOverrideKey(
   const method = override.method ?? route.method;
   const path = override.path ?? route.path;
   return `${method}:${path}:${index}`;
+}
+
+function processResponseTemplates(data: any, context: any): any {
+  if (data === null || data === undefined) {
+    return data;
+  }
+
+  if (typeof data === "string") {
+    return data.replace(/\{\{(.+?)\}\}/g, (_, path) => {
+      const trimmedPath = path.trim();
+      const parts = trimmedPath.split(".");
+      let value: any = context;
+      for (const part of parts) {
+        if (value === null || value === undefined) {
+          break;
+        }
+        // Handle array indexing like body.items[0]
+        const arrayMatch = part.match(/(.+)\[(\d+)\]/);
+        if (arrayMatch) {
+           const [_, key, index] = arrayMatch;
+           value = value[key]?.[parseInt(index, 10)];
+        } else {
+           value = value[part];
+        }
+      }
+
+      if (typeof value === "function" && trimmedPath.startsWith("faker")) {
+        return value();
+      }
+
+      return value !== undefined ? String(value) : `{{${trimmedPath}}}`;
+    });
+  }
+
+  if (Array.isArray(data)) {
+    return data.map((item) => processResponseTemplates(item, context));
+  }
+
+  if (typeof data === "object") {
+    const result: any = {};
+    for (const [key, value] of Object.entries(data)) {
+      result[key] = processResponseTemplates(value, context);
+    }
+    return result;
+  }
+
+  return data;
 }
 
 function mergeHeaders(

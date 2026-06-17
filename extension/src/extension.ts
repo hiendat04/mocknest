@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 import { RouteItem, RouteTreeProvider, ScenarioItem } from "./providers/routeTreeProvider";
 import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
+import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
 import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
@@ -631,6 +632,10 @@ export function activate(context: vscode.ExtensionContext) {
         await restartServerCommand(mockServer, informationMessage);
       },
     ),
+
+    vscode.commands.registerCommand("mocknest.exportRuntimeConfig", async () => {
+      await exportRuntimeConfigCommand();
+    }),
 
     vscode.commands.registerCommand("mocknest.refreshState", async () => {
       await stateExplorerProvider.refresh();

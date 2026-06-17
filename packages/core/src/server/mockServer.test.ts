@@ -883,4 +883,66 @@ describe("MockServer", () => {
     const body3: any = await res3.json();
     expect(body3.default).toBeDefined();
   });
+
+  it("should apply response templates using request data and faker", async () => {
+    server = new MockServer({
+      port: 3026,
+      routes: [
+        {
+          method: "POST",
+          path: "/template",
+          statusCode: 200,
+          responseSchema: { type: "object", properties: { 
+            echo: { type: "string" },
+            query: { type: "string" },
+            header: { type: "string" },
+            nested: { type: "string" },
+            name: { type: "string" }
+          } },
+          responses: [],
+          responseOverrides: [
+            {
+              response: {
+                statusCode: 200,
+                headers: { "X-Echo": "{{req.headers.x-test}}" },
+                body: {
+                  echo: "Hello {{req.body.name}}!",
+                  query: "Limit is {{req.query.limit}}",
+                  header: "Auth: {{req.headers.authorization}}",
+                  nested: "First item: {{req.body.items[0].val}}",
+                  name: "{{faker.person.firstName}}"
+                }
+              }
+            }
+          ]
+        },
+      ],
+    });
+
+    await server.start();
+
+    const res = await fetch("http://localhost:3026/template?limit=50", {
+      method: "POST",
+      headers: { 
+        "Content-Type": "application/json",
+        "Authorization": "Bearer token123",
+        "X-Test": "header-val"
+      },
+      body: JSON.stringify({ 
+        name: "Alice",
+        items: [{ val: "nested-1" }]
+      }),
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-echo")).toBe("header-val");
+    
+    const body: any = await res.json();
+    expect(body.echo).toBe("Hello Alice!");
+    expect(body.query).toBe("Limit is 50");
+    expect(body.header).toBe("Auth: Bearer token123");
+    expect(body.nested).toBe("First item: nested-1");
+    expect(typeof body.name).toBe("string");
+    expect(body.name).not.toBe("{{faker.person.firstName}}");
+  });
 });
