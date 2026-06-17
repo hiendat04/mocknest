@@ -11,6 +11,7 @@ async function main() {
     strict: false,
     delay: 20,
     errorRate: 0,
+    proxyRecord: false,
   };
 
   let specPath = "";
@@ -25,6 +26,8 @@ async function main() {
       options.stateful = true;
     } else if (arg === "--state-path") {
       options.statePath = args[++i];
+    } else if (arg === "--proxy-record") {
+      options.proxyRecord = true;
     } else if (arg === "--chaos-latency") {
       options.delay = parseInt(args[++i], 10);
     } else if (arg === "--chaos-error-rate") {
@@ -62,6 +65,7 @@ async function main() {
       errorRate: options.errorRate,
       stateful: options.stateful,
       statePath: options.statePath,
+      proxyRecord: options.proxyRecord,
       strictValidation: options.strict,
       logging: {
         enabled: true,
@@ -109,6 +113,7 @@ Options:
   --port, -p <number>      Port to run the server on (default: 3001)
   --stateful               Enable stateful mocking (persistent CRUD)
   --state-path <path>      Path to persist state data (default: .mocknest/state.json)
+  --proxy-record           Automatically record successful proxied responses
   --chaos-latency <ms>     Global latency for all responses (default: 20)
   --chaos-error-rate <0-1> Probability of simulated failures (default: 0)
   --strict                 Enable strict request validation

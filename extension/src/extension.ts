@@ -534,6 +534,38 @@ export function activate(context: vscode.ExtensionContext) {
         input.trim(),
         vscode.ConfigurationTarget.Workspace,
       );
+      chaosControlProvider.refresh();
+    }),
+
+    vscode.commands.registerCommand("mocknest.toggleProxyRecord", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<boolean>("proxyRecord", false);
+      const next = !current;
+      await config.update(
+        "proxyRecord",
+        next,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+      vscode.window.showInformationMessage(
+        `Proxy recording ${next ? "enabled" : "disabled"}.`,
+      );
+    }),
+
+    vscode.commands.registerCommand("mocknest.clearRecordedMocks", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const port = config.get<number>("port", 3001);
+      
+      try {
+        const response = await fetch(`http://localhost:${port}/__mocknest/overrides`, {
+          method: "DELETE",
+        });
+        if (response.ok) {
+          vscode.window.showInformationMessage("All recorded mocks cleared.");
+        }
+      } catch (error) {
+        vscode.window.showErrorMessage(`Failed to clear recorded mocks: ${error}`);
+      }
     }),
 
     vscode.commands.registerCommand(

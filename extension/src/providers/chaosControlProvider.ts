@@ -45,6 +45,7 @@ export class ChaosControlProvider
     const strictValidation = config.get<boolean>("strictValidation", false);
     const stateful = config.get<boolean>("stateful", false);
     const proxyTarget = config.get<string>("proxyTarget", "");
+    const proxyRecord = config.get<boolean>("proxyRecord", false);
     const isChaosMode = delay > DEFAULT_DELAY_MS || errorRate > DEFAULT_ERROR_RATE || delayJitter > 0;
 
     return [
@@ -71,6 +72,14 @@ export class ChaosControlProvider
         "mocknest.proxyTarget",
         proxyTarget ? `Forwarding unhandled to ${proxyTarget}` : "Forward unhandled requests to a real backend",
         "remote",
+      ),
+      new ChaosControlItem(
+        "Proxy Recording",
+        proxyRecord ? "ON" : "OFF",
+        "mocknest.toggleProxyRecord",
+        "mocknest.proxyRecord",
+        "Record successful proxied responses as new mocks",
+        proxyRecord ? "record" : "record-keys",
       ),
       new ChaosControlItem(
         "Latency",

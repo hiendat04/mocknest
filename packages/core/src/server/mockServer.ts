@@ -86,6 +86,7 @@ export interface MockServerOptions {
   stateful?: boolean;
   statePath?: string;
   deterministic?: boolean | DeterministicOptions;
+  proxyRecord?: boolean;
   logging?: MockServerLogOptions;
   requestHistory?: boolean | RequestHistoryOptions;
   responseOverrides?: ResponseOverrideRule[];
@@ -99,6 +100,7 @@ export class MockServer {
   private requestIdCounter = 0;
   private requestHistoryOptions: Required<RequestHistoryOptions>;
   private overrideHitCounts: Map<string, number> = new Map();
+  private dynamicOverrides: ResponseOverrideRule[] = [];
 
   constructor(private options: MockServerOptions) {
     this.app = express();
@@ -148,6 +150,25 @@ export class MockServer {
     this.app.delete("/__mocknest/state/:collection/:id", (req, res) => {
       const { collection, id } = req.params;
       this.dataStore.deleteItem(collection, "id", id);
+      res.json({ ok: true });
+    });
+
+    this.app.get("/__mocknest/overrides", (req, res) => {
+      res.json(this.dynamicOverrides);
+    });
+
+    this.app.post("/__mocknest/overrides", (req, res) => {
+      const override = req.body as ResponseOverrideRule;
+      if (!override || !override.response) {
+        res.status(400).json({ error: "Invalid override format" });
+        return;
+      }
+      this.dynamicOverrides.unshift(override);
+      res.json({ ok: true, count: this.dynamicOverrides.length });
+    });
+
+    this.app.delete("/__mocknest/overrides", (req, res) => {
+      this.dynamicOverrides = [];
       res.json({ ok: true });
     });
   }
@@ -521,6 +542,23 @@ export class MockServer {
             }
           });
 
+          if (this.options.proxyRecord && proxyRes.status >= 200 && proxyRes.status < 300) {
+            console.log(`[MockNest] Recording proxied response for ${req.method} ${req.path}`);
+            this.dynamicOverrides.unshift({
+              name: `Recorded: ${req.method} ${req.path}`,
+              method: req.method,
+              path: req.path,
+              match: {
+                query: Object.keys(req.query).length > 0 ? { ...req.query } as any : undefined,
+                headers: { ...req.headers } as any, // Might want to be more selective here later
+              },
+              response: {
+                statusCode: proxyRes.status,
+                body: responseBody,
+              }
+            });
+          }
+
           res.status(proxyRes.status).send(data);
           return;
         } catch (error) {
@@ -571,7 +609,7 @@ export class MockServer {
     req: Request,
     route: ParsedRoute,
   ): ResponseOverrideRule | undefined {
-    const overrides = collectOverrides(route, this.options.responseOverrides);
+    const overrides = collectOverrides(route, this.options.responseOverrides, this.dynamicOverrides);
     if (overrides.length === 0) return undefined;
 
     for (let index = 0; index < overrides.length; index += 1) {
@@ -596,11 +634,13 @@ export class MockServer {
 function collectOverrides(
   route: ParsedRoute,
   globalOverrides?: ResponseOverrideRule[],
+  dynamicOverrides?: ResponseOverrideRule[],
 ): ResponseOverrideRule[] {
   const routeOverrides = route.responseOverrides ?? [];
   const combined = [] as ResponseOverrideRule[];
-  if (globalOverrides) combined.push(...globalOverrides);
+  if (dynamicOverrides && dynamicOverrides.length > 0) combined.push(...dynamicOverrides);
   if (routeOverrides.length > 0) combined.push(...routeOverrides);
+  if (globalOverrides) combined.push(...globalOverrides);
   return combined;
 }
 

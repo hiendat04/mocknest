@@ -232,6 +232,11 @@
           "type": "string",
           "default": "",
           "description": "Base URL to forward unhandled requests to (e.g. http://api.staging.com)."
+        },
+        "mocknest.proxyRecord": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically record successful proxied responses as new mock overrides."
         }
       }
     },
@@ -305,12 +310,23 @@
           "group": "inline"
         },
         {
-          "command": "mocknest.toggleChaosMode",
-          "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosToggle",
+          "command": "mocknest.setProxyTarget",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.proxyTarget",
           "group": "inline"
         },
         {
+          "command": "mocknest.toggleProxyRecord",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.proxyRecord",
+          "group": "inline@1"
+        },
+        {
+          "command": "mocknest.clearRecordedMocks",
+          "when": "view == mocknest.chaosControls && viewItem == mocknest.proxyRecord",
+          "group": "inline@2"
+        },
+        {
           "command": "mocknest.setChaosLatency",
+
           "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosLatency",
           "group": "inline"
         },

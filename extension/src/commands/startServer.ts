@@ -48,6 +48,7 @@ export async function startServerCommand(
   const strictValidation = config.get<boolean>("strictValidation", false);
   const stateful = config.get<boolean>("stateful", false);
   const statePathConfig = config.get<string>("statePath", ".mocknest/state.json");
+  const proxyRecord = config.get<boolean>("proxyRecord", false);
 
   let statePath: string | undefined = undefined;
   if (stateful && statePathConfig) {
@@ -73,6 +74,7 @@ export async function startServerCommand(
     strictValidation,
     stateful,
     statePath,
+    proxyRecord,
     onRequest: (
       method,
       path,
