@@ -116,4 +116,104 @@ describe("MockServer Stateful Mocks", () => {
     const task1New: any = await res4.json();
     expect(task1New.title).not.toBe("Updated Title");
   });
+
+  it("should dynamically detect and use non-standard ID fields like productId in stateful mocking", async () => {
+    server = new MockServer({
+      port: 3012,
+      stateful: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/products",
+          statusCode: 200,
+          responseSchema: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                productId: { type: "string" },
+                name: { type: "string" }
+              }
+            }
+          },
+          responses: []
+        },
+        {
+          method: "POST",
+          path: "/products",
+          statusCode: 201,
+          responseSchema: {
+            type: "object",
+            properties: {
+              productId: { type: "string" },
+              name: { type: "string" }
+            }
+          },
+          responses: []
+        },
+        {
+          method: "GET",
+          path: "/products/:productId",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: {
+              productId: { type: "string" },
+              name: { type: "string" }
+            }
+          },
+          responses: []
+        },
+        {
+          method: "PUT",
+          path: "/products/:productId",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: {
+              productId: { type: "string" },
+              name: { type: "string" }
+            }
+          },
+          responses: []
+        }
+      ],
+    });
+
+    await server.start();
+
+    // 1. POST a new product. The server should auto-generate productId instead of id.
+    const res1 = await fetch("http://localhost:3012/products", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Gizmo" })
+    });
+    const createdProduct = await res1.json() as any;
+    expect(createdProduct.name).toBe("Gizmo");
+    expect(createdProduct.productId).toBeDefined();
+    expect(createdProduct.id).toBeUndefined(); // Should NOT generate "id" if productId is inferred
+
+    const generatedId = createdProduct.productId;
+
+    // 2. GET the product by productId
+    const res2 = await fetch(`http://localhost:3012/products/${generatedId}`);
+    const fetchedProduct = await res2.json() as any;
+    expect(fetchedProduct.productId).toBe(generatedId);
+    expect(fetchedProduct.name).toBe("Gizmo");
+
+    // 3. PUT update the product by productId
+    const res3 = await fetch(`http://localhost:3012/products/${generatedId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Super Gizmo" })
+    });
+    const updatedProduct = await res3.json() as any;
+    expect(updatedProduct.productId).toBe(generatedId);
+    expect(updatedProduct.name).toBe("Super Gizmo");
+
+    // 4. GET the product again to check persistence
+    const res4 = await fetch(`http://localhost:3012/products/${generatedId}`);
+    const fetchedProductAgain = await res4.json() as any;
+    expect(fetchedProductAgain.name).toBe("Super Gizmo");
+  });
 });

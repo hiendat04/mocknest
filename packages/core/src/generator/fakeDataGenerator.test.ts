@@ -436,4 +436,118 @@ describe("fakeDataGenerator", () => {
       expect(Array.isArray(result.users)).toBe(true);
     }
   });
+
+  it("should respect multipleOf for integers and numbers", () => {
+    const intSchema = {
+      type: "integer",
+      minimum: 11,
+      maximum: 29,
+      multipleOf: 5,
+    };
+    const intResult = generateFakeData(intSchema);
+    expect(intResult % 5).toBe(0);
+    expect(intResult).toBeGreaterThanOrEqual(11);
+    expect(intResult).toBeLessThanOrEqual(29);
+
+    const floatSchema = {
+      type: "number",
+      minimum: 5,
+      maximum: 25,
+      multipleOf: 2.5,
+    };
+    const floatResult = generateFakeData(floatSchema);
+    expect(floatResult % 2.5).toBe(0);
+    expect(floatResult).toBeGreaterThanOrEqual(5);
+    expect(floatResult).toBeLessThanOrEqual(25);
+  });
+
+  it("should respect exclusiveMinimum and exclusiveMaximum constraints", () => {
+    const intSchema = {
+      type: "integer",
+      minimum: 5,
+      exclusiveMinimum: true,
+      maximum: 7,
+      exclusiveMaximum: true,
+    };
+    const intResult = generateFakeData(intSchema);
+    expect(intResult).toBe(6);
+
+    const floatSchema = {
+      type: "number",
+      minimum: 10,
+      exclusiveMinimum: true,
+      maximum: 11,
+      exclusiveMaximum: true,
+    };
+    const floatResult = generateFakeData(floatSchema);
+    expect(floatResult).toBeGreaterThan(10);
+    expect(floatResult).toBeLessThan(11);
+  });
+
+  it("should enforce deep object uniqueness for uniqueItems", () => {
+    const schema = {
+      type: "array",
+      uniqueItems: true,
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: "object",
+        properties: {
+          flag: { type: "boolean" }
+        }
+      }
+    };
+    // Since boolean only has 2 values (true, false), and we want 3 unique items,
+    // uniqueItems deep comparison will try to generate 3 unique objects, but can only get 2.
+    // So the final list size will be capped at 2 because maxAttempts is reached.
+    const result = generateFakeData(schema);
+    expect(result.length).toBeLessThanOrEqual(2);
+
+    // Let's check that we don't have duplicate serialized items
+    const serialized = result.map((item: any) => JSON.stringify(item));
+    const uniqueSerialized = new Set(serialized);
+    expect(uniqueSerialized.size).toBe(serialized.length);
+  });
+
+  it("should return type-correct falsy/empty values for deep recursion limit protection", () => {
+    const arraySchema = {
+      type: "array",
+      items: {
+        type: "array",
+        items: {
+          type: "array",
+          items: {
+            type: "array",
+            items: {
+              type: "array",
+              items: {
+                type: "array",
+                items: {
+                  type: "array",
+                  items: {
+                    type: "array",
+                    items: {
+                      type: "array",
+                      items: {
+                        type: "array",
+                        items: {
+                          type: "array",
+                          items: {
+                            type: "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    };
+    const result = generateFakeData(arraySchema);
+    // At depth > 10, it should return [] rather than {}
+    expect(Array.isArray(result)).toBe(true);
+  });
 });

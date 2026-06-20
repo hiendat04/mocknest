@@ -11,6 +11,7 @@ import {
 } from "../parser/openApiParser";
 import { generateFakeData } from "../generator/fakeDataGenerator";
 import { DataStore } from "./dataStore";
+import { isPlainObject, isReferenceObject, stableStringify } from "../utils/helpers";
 
 export interface DeterministicOptions {
   seed?: string;
@@ -346,17 +347,19 @@ export class MockServer {
                   ? generateFakeData(responseSchema, undefined, fakeDataOptions)
                   : {};
               
+              const idField = determineIdField(collection, undefined, responseSchema, this.dataStore);
+
               // Ensure it has an ID if it's an object
-              if (isPlainObject(newItem) && !newItem.id && !newItem._id) {
+              if (isPlainObject(newItem) && !newItem[idField] && !newItem.id && !newItem._id) {
                 const idRandom = deterministicRandom ?? Math.random;
-                newItem.id = idRandom().toString(36).substring(7);
+                newItem[idField] = idRandom().toString(36).substring(7);
               }
               this.dataStore.addItem(collection, newItem);
               fakeBody = newItem;
             }
           } else if (pathInfo.type === "item" && idParam) {
             const idValue = req.params[idParam];
-            const idField = "id"; // Defaulting to 'id'
+            const idField = determineIdField(collection, idParam, responseSchema, this.dataStore);
 
             if (route.method === "GET") {
               fakeBody = this.dataStore.findItem(collection, idField, idValue);
@@ -1079,36 +1082,6 @@ function hashStringToSeed(value: string): number {
   return hash >>> 0;
 }
 
-function stableStringify(value: unknown): string {
-  if (value === null || value === undefined) {
-    return "null";
-  }
-
-  if (typeof value === "string") {
-    return JSON.stringify(value);
-  }
-
-  if (typeof value === "number" || typeof value === "boolean") {
-    return String(value);
-  }
-
-  if (Array.isArray(value)) {
-    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
-  }
-
-  if (isPlainObject(value)) {
-    const keys = Object.keys(value).sort();
-    const entries = keys.map((key) => {
-      const entryValue = stableStringify(
-        (value as Record<string, unknown>)[key],
-      );
-      return `${JSON.stringify(key)}:${entryValue}`;
-    });
-    return `{${entries.join(",")}}`;
-  }
-
-  return JSON.stringify(value);
-}
 
 function validateRouteRequest(route: ParsedRoute, req: Request): string[] {
   const errors: string[] = [];
@@ -1405,17 +1378,7 @@ function asArraySchema(
   return undefined;
 }
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
 
-function isReferenceObject(value: unknown): value is OpenAPIV3.ReferenceObject {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      "$ref" in (value as Record<string, unknown>),
-  );
-}
 
 function findBestResponse(
   route: ParsedRoute,
@@ -1460,4 +1423,80 @@ function parsePathInfo(path: string) {
       collection: lastSegment,
     };
   }
+}
+
+function determineIdField(
+  collection: string,
+  idParam: string | undefined,
+  schema: OpenAPIV3.SchemaObject | OpenAPIV3.ReferenceObject | undefined,
+  dataStore: DataStore,
+): string {
+  if (schema && !isReferenceObject(schema)) {
+    let objSchema: OpenAPIV3.SchemaObject = schema;
+    if (schema.type === "array" && schema.items && !isReferenceObject(schema.items)) {
+      objSchema = schema.items as OpenAPIV3.SchemaObject;
+    }
+    const properties = objSchema.properties || {};
+    
+    if (idParam && idParam in properties) {
+      return idParam;
+    }
+    if ("id" in properties) {
+      return "id";
+    }
+    if ("_id" in properties) {
+      return "_id";
+    }
+    
+    const keys = Object.keys(properties);
+    const collectionLower = collection.toLowerCase();
+    const collectionSingular = collectionLower.endsWith("s") ? collectionLower.slice(0, -1) : collectionLower;
+    
+    const collId1 = `${collectionLower}id`;
+    const collId2 = `${collectionLower}_id`;
+    const collId3 = `${collectionSingular}id`;
+    const collId4 = `${collectionSingular}_id`;
+    
+    const found = keys.find(k => {
+      const kl = k.toLowerCase();
+      return kl === "id" || kl === "_id" || kl === collId1 || kl === collId2 || kl === collId3 || kl === collId4;
+    });
+    if (found) {
+      return found;
+    }
+  }
+
+  const existing = dataStore.getCollection(collection);
+  if (existing && existing.length > 0) {
+    const first = existing[0];
+    if (isPlainObject(first)) {
+      if (idParam && idParam in first) {
+        return idParam;
+      }
+      if ("id" in first) {
+        return "id";
+      }
+      if ("_id" in first) {
+        return "_id";
+      }
+      const keys = Object.keys(first);
+      const collectionLower = collection.toLowerCase();
+      const collectionSingular = collectionLower.endsWith("s") ? collectionLower.slice(0, -1) : collectionLower;
+      
+      const collId1 = `${collectionLower}id`;
+      const collId2 = `${collectionLower}_id`;
+      const collId3 = `${collectionSingular}id`;
+      const collId4 = `${collectionSingular}_id`;
+      
+      const found = keys.find(k => {
+        const kl = k.toLowerCase();
+        return kl === "id" || kl === "_id" || kl === collId1 || kl === collId2 || kl === collId3 || kl === collId4;
+      });
+      if (found) {
+        return found;
+      }
+    }
+  }
+
+  return "id";
 }

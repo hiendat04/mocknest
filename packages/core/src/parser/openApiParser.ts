@@ -1,5 +1,6 @@
 import SwaggerParser from "@apidevtools/swagger-parser";
 import { OpenAPIV3 } from "openapi-types";
+import { isReferenceObject } from "../utils/helpers";
 
 export interface ParsedParameter {
   name: string;
@@ -273,12 +274,4 @@ function normalizeParameters(
   }
 
   return [...deduped.values()];
-}
-
-function isReferenceObject(value: unknown): value is OpenAPIV3.ReferenceObject {
-  return Boolean(
-    value &&
-      typeof value === "object" &&
-      "$ref" in (value as Record<string, unknown>),
-  );
 }

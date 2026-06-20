@@ -1,5 +1,6 @@
 import { faker, Faker } from "@faker-js/faker";
 import { OpenAPIV3 } from "openapi-types";
+import { isPlainObject, stableStringify } from "../utils/helpers";
 
 export interface FakeDataOptions {
   random?: () => number;
@@ -14,10 +15,19 @@ export function generateFakeData(
   depth: number = 0,
 ): any {
   if (!schema) return {};
-  if (depth > 10) return {}; // Prevent infinite recursion for circular schemas
 
   const rng = options?.random ?? Math.random;
   const fakerInstance = options?.faker ?? faker;
+
+  if (depth > 10) {
+    const type = resolveSchemaType(schema, rng, fakerInstance);
+    if (type === "array") return [];
+    if (type === "object") return {};
+    if (type === "string") return "";
+    if (type === "number" || type === "integer") return 0;
+    if (type === "boolean") return false;
+    return null;
+  }
 
   const resolvedType = resolveSchemaType(schema, rng, fakerInstance);
   if (resolvedType === "null") {
@@ -61,14 +71,22 @@ export function generateFakeData(
     }
 
     if (schema.uniqueItems) {
-      const result = new Set();
+      const seen = new Set<string>();
+      const result: any[] = [];
       let attempts = 0;
-      const maxAttempts = count * 2;
-      while (result.size < count && attempts < maxAttempts) {
-        result.add(generateFakeData(schema.items, context, options, depth + 1));
+      const maxAttempts = count * 10;
+      while (result.length < count && attempts < maxAttempts) {
+        const generated = generateFakeData(schema.items, context, options, depth + 1);
+        const str = typeof generated === "object" && generated !== null
+          ? stableStringify(generated)
+          : String(generated);
+        if (!seen.has(str)) {
+          seen.add(str);
+          result.push(generated);
+        }
         attempts += 1;
       }
-      return Array.from(result);
+      return result;
     }
 
     return Array.from({ length: count }, () =>
@@ -261,21 +279,70 @@ function generateValueFromField(
   switch (resolvedType) {
     case "string":
       if (schema.minLength !== undefined || schema.maxLength !== undefined) {
+        const minLen = schema.minLength ?? 1;
+        const maxLen = Math.max(minLen, schema.maxLength ?? Math.max(minLen, 20));
         return fakerInstance.string.alphanumeric({
           length: {
-            min: schema.minLength ?? 1,
-            max: schema.maxLength ?? Math.max(schema.minLength ?? 0, 20),
+            min: minLen,
+            max: maxLen,
           },
         });
       }
       return fakerInstance.lorem.word();
     case "number":
-    case "integer":
-      const min = schema.minimum ?? 1;
-      const max = schema.maximum ?? Math.max(min, 100);
-      return resolvedType === "integer"
-        ? fakerInstance.number.int({ min, max })
-        : fakerInstance.number.float({ min, max, fractionDigits: 2 });
+    case "integer": {
+      let min = schema.minimum ?? 1;
+      let max = schema.maximum ?? Math.max(min, 100);
+
+      const isExclusiveMin = schema.exclusiveMinimum === true;
+      const isExclusiveMax = schema.exclusiveMaximum === true;
+
+      if (resolvedType === "integer") {
+        if (isExclusiveMin && schema.minimum !== undefined) {
+          min = schema.minimum + 1;
+        }
+        if (isExclusiveMax && schema.maximum !== undefined) {
+          max = schema.maximum - 1;
+        }
+        if (max < min) {
+          max = min;
+        }
+
+        if (schema.multipleOf !== undefined) {
+          const multiple = schema.multipleOf;
+          const minMultiplier = Math.ceil(min / multiple);
+          const maxMultiplier = Math.floor(max / multiple);
+          if (maxMultiplier >= minMultiplier) {
+            const multiplier = fakerInstance.number.int({ min: minMultiplier, max: maxMultiplier });
+            return multiplier * multiple;
+          }
+        }
+
+        return fakerInstance.number.int({ min, max });
+      } else {
+        if (isExclusiveMin && schema.minimum !== undefined) {
+          min = schema.minimum + 0.001;
+        }
+        if (isExclusiveMax && schema.maximum !== undefined) {
+          max = schema.maximum - 0.001;
+        }
+        if (max < min) {
+          max = min;
+        }
+
+        if (schema.multipleOf !== undefined) {
+          const multiple = schema.multipleOf;
+          const minMultiplier = Math.ceil(min / multiple);
+          const maxMultiplier = Math.floor(max / multiple);
+          if (maxMultiplier >= minMultiplier) {
+            const multiplier = fakerInstance.number.int({ min: minMultiplier, max: maxMultiplier });
+            return multiplier * multiple;
+          }
+        }
+
+        return fakerInstance.number.float({ min, max, fractionDigits: 2 });
+      }
+    }
     case "boolean":
       return fakerInstance.datatype.boolean();
     default:
