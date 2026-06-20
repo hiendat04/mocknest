@@ -3,6 +3,7 @@ import { RouteItem, RouteTreeProvider, ScenarioItem } from "./providers/routeTre
 import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
 import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
+import { importRuntimeConfigCommand } from "./commands/importRuntimeConfig";
 import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
@@ -635,6 +636,13 @@ export function activate(context: vscode.ExtensionContext) {
 
     vscode.commands.registerCommand("mocknest.exportRuntimeConfig", async () => {
       await exportRuntimeConfigCommand();
+    }),
+
+    vscode.commands.registerCommand("mocknest.importRuntimeConfig", async () => {
+      await importRuntimeConfigCommand(() => {
+        stateExplorerProvider.refresh();
+        chaosControlProvider.refresh();
+      });
     }),
 
     vscode.commands.registerCommand("mocknest.refreshState", async () => {

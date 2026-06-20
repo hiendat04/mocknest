@@ -142,6 +142,16 @@ export class MockServer {
       res.json(this.dataStore.getAll());
     });
 
+    this.app.put("/__mocknest/state/bulk", (req, res) => {
+      const state = req.body;
+      if (typeof state !== "object" || state === null) {
+        res.status(400).json({ error: "Invalid state format" });
+        return;
+      }
+      this.dataStore.setAll(state);
+      res.json({ ok: true });
+    });
+
     this.app.delete("/__mocknest/state/:collection", (req, res) => {
       this.dataStore.clearCollection(req.params.collection);
       res.json({ ok: true });
@@ -170,6 +180,16 @@ export class MockServer {
     this.app.delete("/__mocknest/overrides", (req, res) => {
       this.dynamicOverrides = [];
       res.json({ ok: true });
+    });
+
+    this.app.put("/__mocknest/overrides/bulk", (req, res) => {
+      const overrides = req.body;
+      if (!Array.isArray(overrides)) {
+        res.status(400).json({ error: "Invalid overrides format (must be an array)" });
+        return;
+      }
+      this.dynamicOverrides = overrides;
+      res.json({ ok: true, count: this.dynamicOverrides.length });
     });
   }
 

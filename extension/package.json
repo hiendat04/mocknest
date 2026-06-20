@@ -111,6 +111,11 @@
         "icon": "$(save-as)"
       },
       {
+        "command": "mocknest.importRuntimeConfig",
+        "title": "MockNest: Import Runtime Config JSON",
+        "icon": "$(database-upload)"
+      },
+      {
         "command": "mocknest.refreshState",
         "title": "MockNest: Refresh State Explorer",
         "icon": "$(refresh)"
@@ -283,6 +288,16 @@
           "group": "navigation@2"
         },
         {
+          "command": "mocknest.exportRuntimeConfig",
+          "when": "view == mocknest.chaosControls",
+          "group": "navigation@1"
+        },
+        {
+          "command": "mocknest.importRuntimeConfig",
+          "when": "view == mocknest.chaosControls",
+          "group": "navigation@2"
+        },
+        {
           "command": "mocknest.resetChaosSettings",
           "when": "view == mocknest.chaosControls",
           "group": "navigation@3"
@@ -291,6 +306,16 @@
           "command": "mocknest.refreshState",
           "when": "view == mocknest.stateExplorer",
           "group": "navigation@1"
+        },
+        {
+          "command": "mocknest.exportRuntimeConfig",
+          "when": "view == mocknest.stateExplorer",
+          "group": "navigation@2"
+        },
+        {
+          "command": "mocknest.importRuntimeConfig",
+          "when": "view == mocknest.stateExplorer",
+          "group": "navigation@3"
         }
       ],
       "view/item/context": [

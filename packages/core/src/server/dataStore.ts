@@ -99,6 +99,11 @@ export class DataStore {
     return Object.fromEntries(this.collections);
   }
 
+  setAll(data: Record<string, any[]>): void {
+    this.collections = new Map(Object.entries(data));
+    this.save();
+  }
+
   clearCollection(name: string): void {
     this.collections.set(name, []);
     this.save();
