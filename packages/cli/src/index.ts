@@ -19,24 +19,36 @@ async function main() {
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg === "--spec" || arg === "-s") {
-      specPath = args[++i];
+      specPath = readOptionValue(args, ++i, arg);
     } else if (arg === "--port" || arg === "-p") {
-      options.port = parseInt(args[++i], 10);
+      options.port = parseIntegerOption(readOptionValue(args, ++i, arg), arg, {
+        min: 1,
+        max: 65535,
+      });
     } else if (arg === "--stateful") {
       options.stateful = true;
     } else if (arg === "--state-path") {
-      options.statePath = args[++i];
+      options.statePath = readOptionValue(args, ++i, arg);
     } else if (arg === "--proxy-record") {
       options.proxyRecord = true;
     } else if (arg === "--chaos-latency") {
-      options.delay = parseInt(args[++i], 10);
+      options.delay = parseIntegerOption(readOptionValue(args, ++i, arg), arg, {
+        min: 0,
+      });
     } else if (arg === "--chaos-error-rate") {
-      options.errorRate = parseFloat(args[++i]);
+      options.errorRate = parseNumberOption(readOptionValue(args, ++i, arg), arg, {
+        min: 0,
+        max: 1,
+      });
     } else if (arg === "--strict") {
       options.strict = true;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       return;
+    } else {
+      console.error(`Error: Unknown option '${arg}'.`);
+      printHelp();
+      process.exit(1);
     }
   }
 
@@ -99,6 +111,77 @@ async function main() {
     console.error("[MockNest CLI] Failed to start server:", error);
     process.exit(1);
   }
+}
+
+function readOptionValue(args: string[], index: number, optionName: string): string {
+  const value = args[index];
+  if (!value || value.startsWith("-")) {
+    console.error(`Error: ${optionName} requires a value.`);
+    printHelp();
+    process.exit(1);
+  }
+  return value;
+}
+
+function parseIntegerOption(
+  value: string,
+  optionName: string,
+  range: { min?: number; max?: number } = {},
+): number {
+  if (!/^\d+$/.test(value)) {
+    console.error(`Error: ${optionName} must be an integer.`);
+    process.exit(1);
+  }
+
+  const parsed = Number(value);
+  if (
+    !Number.isSafeInteger(parsed) ||
+    (range.min !== undefined && parsed < range.min) ||
+    (range.max !== undefined && parsed > range.max)
+  ) {
+    console.error(
+      `Error: ${optionName} must be ${formatRange("an integer", range)}.`,
+    );
+    process.exit(1);
+  }
+
+  return parsed;
+}
+
+function parseNumberOption(
+  value: string,
+  optionName: string,
+  range: { min?: number; max?: number } = {},
+): number {
+  const parsed = Number(value);
+  if (
+    !Number.isFinite(parsed) ||
+    (range.min !== undefined && parsed < range.min) ||
+    (range.max !== undefined && parsed > range.max)
+  ) {
+    console.error(
+      `Error: ${optionName} must be ${formatRange("a number", range)}.`,
+    );
+    process.exit(1);
+  }
+
+  return parsed;
+}
+
+function formatRange(
+  label: string,
+  range: { min?: number; max?: number },
+): string {
+  if (range.min !== undefined && range.max !== undefined) {
+    return `${label} between ${range.min} and ${range.max}`;
+  }
+  if (range.min !== undefined) {
+    return `${label} greater than or equal to ${range.min}`;
+  }
+  if (range.max !== undefined) {
+    return `${label} less than or equal to ${range.max}`;
+  }
+  return label;
 }
 
 function printHelp() {

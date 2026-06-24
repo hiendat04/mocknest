@@ -945,4 +945,139 @@ describe("MockServer", () => {
     expect(typeof body.name).toBe("string");
     expect(body.name).not.toBe("{{faker.person.firstName}}");
   });
+
+  it("should validate additionalProperties: false in strict mode", async () => {
+    server = new MockServer({
+      port: 3027,
+      strictValidation: true,
+      routes: [
+        {
+          method: "POST",
+          path: "/users",
+          statusCode: 200,
+          requestSchema: {
+            type: "object",
+            properties: {
+              name: { type: "string" }
+            },
+            additionalProperties: false
+          },
+          responses: []
+        }
+      ]
+    });
+
+    await server.start();
+
+    // 1. Send extra property -> 400
+    const res1 = await fetch("http://localhost:3027/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Bob", extra: "field" })
+    });
+    expect(res1.status).toBe(400);
+    const body1 = await res1.json() as any;
+    expect(body1.error).toContain("Request validation failed");
+    expect(body1.details[0]).toContain("additional property 'extra' is not allowed");
+
+    // 2. Send correct schema -> 200
+    const res2 = await fetch("http://localhost:3027/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "Bob" })
+    });
+    expect(res2.status).toBe(200);
+  });
+
+  it("should validate uniqueItems constraint in request bodies in strict mode", async () => {
+    server = new MockServer({
+      port: 3028,
+      strictValidation: true,
+      routes: [
+        {
+          method: "POST",
+          path: "/tags",
+          statusCode: 200,
+          requestSchema: {
+            type: "array",
+            uniqueItems: true,
+            items: { type: "string" }
+          },
+          responses: []
+        }
+      ]
+    });
+
+    await server.start();
+
+    // 1. Send duplicate items -> 400
+    const res1 = await fetch("http://localhost:3028/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(["red", "red"])
+    });
+    expect(res1.status).toBe(400);
+    const body1 = await res1.json() as any;
+    expect(body1.details[0]).toContain("array items must be unique, duplicate found");
+
+    // 2. Send unique items -> 200
+    const res2 = await fetch("http://localhost:3028/tags", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(["red", "blue"])
+    });
+    expect(res2.status).toBe(200);
+  });
+
+  it("should validate and coerce query arrays with uniqueItems and minItems", async () => {
+    server = new MockServer({
+      port: 3029,
+      strictValidation: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/search",
+          statusCode: 200,
+          parameters: [
+            {
+              name: "ids",
+              in: "query",
+              required: true,
+              schema: {
+                type: "array",
+                minItems: 2,
+                uniqueItems: true,
+                items: { type: "integer" }
+              }
+            }
+          ],
+          responses: []
+        }
+      ]
+    });
+
+    await server.start();
+
+    // 1. Too few items (1 item) -> 400
+    const res1 = await fetch("http://localhost:3029/search?ids=1");
+    expect(res1.status).toBe(400);
+    const body1 = await res1.json() as any;
+    expect(body1.details[0]).toContain("expected at least 2 items");
+
+    // 2. Non-integer item -> 400
+    const res2 = await fetch("http://localhost:3029/search?ids=1,abc");
+    expect(res2.status).toBe(400);
+    const body2 = await res2.json() as any;
+    expect(body2.details[0]).toContain("expected integer");
+
+    // 3. Duplicate item -> 400
+    const res3 = await fetch("http://localhost:3029/search?ids=1,1");
+    expect(res3.status).toBe(400);
+    const body3 = await res3.json() as any;
+    expect(body3.details[0]).toContain("array items must be unique");
+
+    // 4. Valid array parameters -> 200
+    const res4 = await fetch("http://localhost:3029/search?ids=1,2");
+    expect(res4.status).toBe(200);
+  });
 });

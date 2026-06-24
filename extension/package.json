@@ -61,6 +61,11 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "mocknest.openRequestLogEntry",
+        "title": "MockNest: Open Request Log Entry",
+        "icon": "$(json)"
+      },
+      {
         "command": "mocknest.copyRequestLogAsCurl",
         "title": "MockNest: Copy Request as cURL",
         "icon": "$(clippy)"
@@ -94,6 +99,26 @@
         "command": "mocknest.resetChaosSettings",
         "title": "MockNest: Reset Chaos Settings",
         "icon": "$(discard)"
+      },
+      {
+        "command": "mocknest.toggleStatefulMode",
+        "title": "MockNest: Toggle Stateful Mode",
+        "icon": "$(database)"
+      },
+      {
+        "command": "mocknest.setProxyTarget",
+        "title": "MockNest: Set Proxy Fallback Target",
+        "icon": "$(remote)"
+      },
+      {
+        "command": "mocknest.toggleProxyRecord",
+        "title": "MockNest: Toggle Proxy Recording",
+        "icon": "$(record)"
+      },
+      {
+        "command": "mocknest.clearRecordedMocks",
+        "title": "MockNest: Clear Recorded Mocks",
+        "icon": "$(clear-all)"
       },
       {
         "command": "mocknest.toggleStrictValidation",

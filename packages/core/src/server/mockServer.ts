@@ -1154,20 +1154,39 @@ function validateParameterValue(
     const arrayValues = Array.isArray(rawValue)
       ? rawValue
       : typeof rawValue === "string"
-        ? rawValue.split(",").map((item) => item.trim())
+        ? (rawValue.trim() === "" ? [] : rawValue.split(",").map((item) => item.trim()))
         : [rawValue];
 
+    const coercedValues: any[] = [];
+    const errors: string[] = [];
+
     if (schema.items && !isReferenceObject(schema.items)) {
-      return arrayValues.flatMap((item, index) =>
-        validateParameterValue(
-          item,
-          schema.items as OpenAPIV3.SchemaObject,
-          `${location}[${index}]`,
-        ),
-      );
+      arrayValues.forEach((item, index) => {
+        let coercedItem = item;
+        const itemSchema = schema.items as OpenAPIV3.SchemaObject;
+        if (typeof coercedItem === "string") {
+          if (itemSchema.type === "integer" || itemSchema.type === "number") {
+            const coerced = Number(coercedItem);
+            if (!isNaN(coerced) && coercedItem.trim() !== "") {
+              coercedItem = coerced;
+            }
+          } else if (itemSchema.type === "boolean") {
+            const lower = coercedItem.toLowerCase();
+            if (lower === "true") coercedItem = true;
+            else if (lower === "false") coercedItem = false;
+          }
+        }
+        coercedValues.push(coercedItem);
+        errors.push(...validateSchemaValue(coercedItem, itemSchema, `${location}[${index}]`));
+      });
+    } else {
+      coercedValues.push(...arrayValues);
     }
 
-    return [];
+    const arraySchema = { ...schema } as any;
+    delete arraySchema.items;
+    errors.push(...validateSchemaValue(coercedValues, arraySchema, location));
+    return errors;
   }
 
   let value = Array.isArray(rawValue) ? rawValue[0] : rawValue;
@@ -1257,7 +1276,8 @@ function validateSchemaValue(
         }
       }
 
-      for (const [key, propertySchema] of Object.entries(schema.properties ?? {})) {
+      const properties = schema.properties ?? {};
+      for (const [key, propertySchema] of Object.entries(properties)) {
         if (!(key in value) || isReferenceObject(propertySchema)) {
           continue;
         }
@@ -1269,6 +1289,27 @@ function validateSchemaValue(
             `${location}.${key}`,
           ),
         );
+      }
+
+      const additionalProps = schema.additionalProperties;
+      if (additionalProps === false) {
+        for (const key of Object.keys(value)) {
+          if (!(key in properties)) {
+            errors.push(`Invalid ${location}: additional property '${key}' is not allowed.`);
+          }
+        }
+      } else if (additionalProps && typeof additionalProps === "object" && !isReferenceObject(additionalProps)) {
+        for (const [key, entryValue] of Object.entries(value)) {
+          if (!(key in properties)) {
+            errors.push(
+              ...validateSchemaValue(
+                entryValue,
+                additionalProps,
+                `${location}.${key}`,
+              ),
+            );
+          }
+        }
       }
       break;
     }
@@ -1294,6 +1335,19 @@ function validateSchemaValue(
         value.forEach((item, index) => {
           errors.push(...validateSchemaValue(item, arraySchema.items as OpenAPIV3.SchemaObject, `${location}[${index}]`));
         });
+      }
+
+      if (arraySchema.uniqueItems) {
+        const seen = new Set<string>();
+        for (let i = 0; i < value.length; i++) {
+          const item = value[i];
+          const str = typeof item === "object" && item !== null ? stableStringify(item) : String(item);
+          if (seen.has(str)) {
+            errors.push(`Invalid ${location}: array items must be unique, duplicate found at index ${i}.`);
+            break;
+          }
+          seen.add(str);
+        }
       }
       break;
     }
