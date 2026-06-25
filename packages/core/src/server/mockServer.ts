@@ -243,19 +243,24 @@ export class MockServer {
         const historyOptions = this.requestHistoryOptions;
 
         const headerDelay = req.header("x-mock-delay");
-        const baseDelay = headerDelay
-          ? parseInt(headerDelay, 10)
-          : (route.mockDelay ?? this.options.delay ?? 20);
+        const baseDelay =
+          parseMockDelayHeader(headerDelay) ??
+          normalizeDelay(route.mockDelay) ??
+          normalizeDelay(this.options.delay) ??
+          20;
 
         const headerStatusCode =
           req.header("x-mock-response-code") ||
           req.header("x-mock-status-code");
-        const baseStatusCode = headerStatusCode
-          ? parseInt(headerStatusCode, 10)
-          : (route.mockStatusCode ?? route.statusCode);
+        const baseStatusCode =
+          parseMockStatusHeader(headerStatusCode) ??
+          normalizeHttpStatus(route.mockStatusCode) ??
+          normalizeHttpStatus(route.statusCode) ??
+          200;
 
         const override = this.selectResponseOverride(req, route);
-        const statusCode = override?.response.statusCode ?? baseStatusCode;
+        const statusCode =
+          normalizeHttpStatus(override?.response.statusCode) ?? baseStatusCode;
 
         const deterministicOptions = normalizeDeterministicOptions(
           this.options.deterministic,
@@ -278,7 +283,7 @@ export class MockServer {
           ? { random: deterministicRandom, faker: deterministicFaker }
           : undefined;
 
-        const baseDelayValue = override?.response.delay ?? baseDelay;
+        const baseDelayValue = normalizeDelay(override?.response.delay) ?? baseDelay;
         
         let delay = baseDelayValue;
         if (this.options.delayJitter && this.options.delayJitter > 0) {
@@ -1054,6 +1059,36 @@ function normalizeHeaders(
     }
   }
   return result;
+}
+
+function parseMockStatusHeader(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  return normalizeHttpStatus(parseStrictInteger(value));
+}
+
+function parseMockDelayHeader(value: string | undefined): number | undefined {
+  if (value === undefined) return undefined;
+  return normalizeDelay(parseStrictInteger(value));
+}
+
+function parseStrictInteger(value: string): number | undefined {
+  const normalized = value.trim();
+  if (!/^\d+$/.test(normalized)) return undefined;
+
+  const parsed = Number(normalized);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function normalizeHttpStatus(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) return undefined;
+  if (value < 100 || value > 599) return undefined;
+  return value;
+}
+
+function normalizeDelay(value: number | undefined): number | undefined {
+  if (typeof value !== "number" || !Number.isSafeInteger(value)) return undefined;
+  if (value < 0) return undefined;
+  return value;
 }
 
 function createSeededRandom(seed: number): () => number {

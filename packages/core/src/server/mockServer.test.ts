@@ -54,6 +54,28 @@ describe("MockServer", () => {
     expect(response.status).toBe(403);
   });
 
+  it("should ignore malformed mock status headers", async () => {
+    server = new MockServer({
+      port: 3030,
+      routes: [
+        {
+          method: "GET",
+          path: "/test",
+          statusCode: 200,
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3030/test", {
+      headers: { "x-mock-response-code": "404abc" },
+    });
+
+    expect(response.status).toBe(200);
+  });
+
   it("should override delay via x-mock-delay header", async () => {
     server = new MockServer({
       port: 3003,
@@ -78,6 +100,32 @@ describe("MockServer", () => {
     
     // Should be around 10ms + overhead, definitely less than 200ms
     expect(duration).toBeLessThan(150);
+  });
+
+  it("should ignore malformed mock delay headers", async () => {
+    server = new MockServer({
+      port: 3031,
+      routes: [
+        {
+          method: "GET",
+          path: "/test",
+          statusCode: 200,
+          responses: [],
+        },
+      ],
+      delay: 40,
+    });
+
+    await server.start();
+
+    const start = Date.now();
+    const response = await fetch("http://localhost:3031/test", {
+      headers: { "x-mock-delay": "300abc" },
+    });
+    const duration = Date.now() - start;
+
+    expect(response.status).toBe(200);
+    expect(duration).toBeLessThan(200);
   });
 
   it("should use the correct schema for a requested status code", async () => {
