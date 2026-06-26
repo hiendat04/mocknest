@@ -93,6 +93,33 @@ paths:
     }
   });
 
+  it("should quote OpenAPI path parameters that are not simple identifiers", async () => {
+    const spec = `
+openapi: 3.0.0
+info:
+  title: Test API
+  version: 1.0.0
+paths:
+  /users/{user-id}/orders/{order.id}:
+    get:
+      responses:
+        '200':
+          description: OK
+`;
+    const tempFile = path.join(__dirname, "temp-spec-quoted-paths.yaml");
+    fs.writeFileSync(tempFile, spec);
+
+    try {
+      const { routes } = await parseOpenApiFile(tempFile);
+      expect(routes).toHaveLength(1);
+      expect(routes[0].path).toBe('/users/:"user-id"/orders/:"order.id"');
+    } finally {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    }
+  });
+
   it("should parse all HTTP methods", async () => {
     const spec = `
 openapi: 3.0.0

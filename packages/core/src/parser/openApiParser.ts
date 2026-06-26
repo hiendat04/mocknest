@@ -180,7 +180,7 @@ export async function parseOpenApiFile(
       routes.push({
         method: method.toUpperCase(),
         // Express expects :id while OpenAPI uses {id}.
-        path: path.replace(/\{(\w+)\}/g, ":$1"),
+        path: convertOpenApiPathToExpress(path),
         summary: operation.summary,
         description: operation.description,
         tags: operation.tags,
@@ -203,6 +203,17 @@ export async function parseOpenApiFile(
   }
 
   return { routes, api };
+}
+
+function convertOpenApiPathToExpress(path: string): string {
+  return path.replace(/\{([^}]+)\}/g, (_match, parameterName: string) => {
+    if (/^[A-Za-z_$][\w$]*$/.test(parameterName)) {
+      return `:${parameterName}`;
+    }
+
+    const escapedName = parameterName.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+    return `:"${escapedName}"`;
+  });
 }
 
 function pickSuccessResponse(
