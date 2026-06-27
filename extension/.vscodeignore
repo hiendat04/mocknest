@@ -1,0 +1,11 @@
+../**
+src/**
+node_modules/**
+.turbo/**
+out/**/*.d.ts
+out/commands/**
+out/providers/**
+out/utils/**
+*.vsix
+tsconfig.json
+**/*.tsbuildinfo

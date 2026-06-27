@@ -4,6 +4,7 @@
   "description": "Instantly spin up a local mock API server from your OpenAPI spec",
   "version": "0.0.1",
   "publisher": "dat-mai",
+  "license": "MIT",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -11,7 +12,7 @@
     "Other"
   ],
   "activationEvents": [
-    "workspaceContains:**/openapi.{yaml,yml,json}"
+    "workspaceContains:**/{openapi,swagger,api-spec}.{yaml,yml,json}"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -171,7 +172,7 @@
         {
           "id": "mocknest",
           "title": "MockNest",
-          "icon": "$(server)"
+          "icon": "media/mocknest.svg"
         }
       ]
     },
@@ -391,7 +392,6 @@
         },
         {
           "command": "mocknest.setChaosLatency",
-
           "when": "view == mocknest.chaosControls && viewItem == mocknest.chaosLatency",
           "group": "inline"
         },
@@ -434,17 +434,16 @@
     }
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && esbuild src/extension.ts --bundle --platform=node --target=node18 --format=cjs --external:vscode --outfile=out/extension.js",
     "watch": "tsc -watch -p tsconfig.json",
     "lint": "tsc --noEmit -p tsconfig.json",
     "vscode:prepublish": "npm run build"
   },
-  "dependencies": {
-    "mocknest-core": "^0.1.0"
-  },
   "devDependencies": {
     "@types/node": "^22.13.14",
     "@types/vscode": "^1.85.0",
+    "esbuild": "^0.28.1",
+    "mocknest-core": "^0.1.0",
     "typescript": "^5.4.0"
   }
 }
