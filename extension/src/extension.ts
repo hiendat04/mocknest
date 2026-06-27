@@ -4,6 +4,7 @@ import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
 import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
 import { importRuntimeConfigCommand } from "./commands/importRuntimeConfig";
+import { generateContractCoverageReportCommand } from "./commands/generateContractCoverageReport";
 import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
@@ -254,6 +255,17 @@ export function activate(context: vscode.ExtensionContext) {
       void persistRequestLog(context, requestLogProvider);
       vscode.window.showInformationMessage("MockNest request log cleared.");
     }),
+
+    vscode.commands.registerCommand(
+      "mocknest.generateContractCoverageReport",
+      async () => {
+        await generateContractCoverageReportCommand(
+          context,
+          routeTreeProvider,
+          requestLogProvider.getEntries(),
+        );
+      },
+    ),
 
     vscode.commands.registerCommand("mocknest.copyBaseUrl", async () => {
       const port = vscode.workspace

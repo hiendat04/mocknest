@@ -61,6 +61,11 @@
         "icon": "$(clear-all)"
       },
       {
+        "command": "mocknest.generateContractCoverageReport",
+        "title": "MockNest: Generate Contract Coverage Report",
+        "icon": "$(graph-line)"
+      },
+      {
         "command": "mocknest.openRequestLogEntry",
         "title": "MockNest: Open Request Log Entry",
         "icon": "$(json)"
@@ -283,24 +288,34 @@
           "group": "navigation@2"
         },
         {
+          "command": "mocknest.generateContractCoverageReport",
+          "when": "view == mocknest.requestLog",
+          "group": "navigation@1"
+        },
+        {
           "command": "mocknest.copyBaseUrl",
           "when": "view == mocknest.routeTree",
           "group": "navigation@2"
         },
         {
-          "command": "mocknest.exportRuntimeConfig",
+          "command": "mocknest.generateContractCoverageReport",
           "when": "view == mocknest.routeTree",
           "group": "navigation@3"
         },
         {
-          "command": "mocknest.clearSelectedSpec",
+          "command": "mocknest.exportRuntimeConfig",
           "when": "view == mocknest.routeTree",
           "group": "navigation@4"
         },
         {
-          "command": "mocknest.openSelectedSpec",
+          "command": "mocknest.clearSelectedSpec",
           "when": "view == mocknest.routeTree",
           "group": "navigation@5"
+        },
+        {
+          "command": "mocknest.openSelectedSpec",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@6"
         },
         {
           "command": "mocknest.toggleChaosMode",
