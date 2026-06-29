@@ -13,7 +13,8 @@ The goal is straightforward: reduce dependency on backend readiness during devel
 Current repository state includes:
 - monorepo setup with npm workspaces and Turborepo task orchestration
 - `mocknest-core` package with OpenAPI parsing, fake data generation, and Express-based mock server runtime
-- VS Code extension skeleton with command registration, route tree provider, and start/stop server commands
+- VS Code extension with route browsing, API testing, request logging, state inspection, chaos controls, and contract coverage reporting
+- traffic-to-mock scenario recording that turns request log entries into replayable mock overrides
 - baseline TypeScript build and lint workflow across packages
 
 This is an active foundation. The project is usable for local experimentation and is structured for incremental feature delivery.
@@ -22,6 +23,8 @@ This is an active foundation. The project is usable for local experimentation an
 
 ### VS Code Extension
 Install the MockNest extension and click the "MockNest" icon in the Activity Bar. You can start the server, browse routes, and explore state directly from VS Code.
+
+Use the Request Log to record an observed request as a replay scenario, or export the full log as `mocknest-scenarios.json` for later import through the runtime configuration workflow.
 
 ### CLI (Standalone)
 You can also run MockNest directly from your terminal using the built-in CLI:
@@ -52,6 +55,7 @@ npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
 - activates from workspace OpenAPI files
 - exposes commands to start and stop the mock server
 - displays parsed routes in the sidebar tree view
+- records API Tester and mock-server traffic as reusable replay scenarios
 - bridges editor actions to core runtime behavior
 
 ## Getting started

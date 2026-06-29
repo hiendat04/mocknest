@@ -5,6 +5,10 @@ import { stopServerCommand } from "./commands/stopServer";
 import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
 import { importRuntimeConfigCommand } from "./commands/importRuntimeConfig";
 import { generateContractCoverageReportCommand } from "./commands/generateContractCoverageReport";
+import {
+  exportRequestLogScenariosCommand,
+  recordRequestAsScenarioCommand,
+} from "./commands/scenarioRecorder";
 import { MockServer } from "mocknest-core";
 import { parseOpenApiFile } from "mocknest-core";
 import { watchOpenApiFile } from "./utils/fileWatcher";
@@ -263,6 +267,27 @@ export function activate(context: vscode.ExtensionContext) {
           context,
           routeTreeProvider,
           requestLogProvider.getEntries(),
+        );
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.recordRequestAsScenario",
+      async (item?: RequestLogItem) => {
+        await recordRequestAsScenarioCommand(
+          item,
+          routeTreeProvider,
+          requestLogProvider.getLatestEntry(),
+        );
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.exportRequestLogScenarios",
+      async () => {
+        await exportRequestLogScenariosCommand(
+          requestLogProvider.getEntries(),
+          routeTreeProvider,
         );
       },
     ),

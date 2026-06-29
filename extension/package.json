@@ -67,6 +67,16 @@
         "icon": "$(graph-line)"
       },
       {
+        "command": "mocknest.recordRequestAsScenario",
+        "title": "MockNest: Record Request as Replay Scenario",
+        "icon": "$(record)"
+      },
+      {
+        "command": "mocknest.exportRequestLogScenarios",
+        "title": "MockNest: Export Request Log as Scenario Pack",
+        "icon": "$(archive)"
+      },
+      {
         "command": "mocknest.openRequestLogEntry",
         "title": "MockNest: Open Request Log Entry",
         "icon": "$(json)"
@@ -294,6 +304,11 @@
           "group": "navigation@1"
         },
         {
+          "command": "mocknest.exportRequestLogScenarios",
+          "when": "view == mocknest.requestLog",
+          "group": "navigation@3"
+        },
+        {
           "command": "mocknest.copyBaseUrl",
           "when": "view == mocknest.routeTree",
           "group": "navigation@2"
@@ -373,7 +388,12 @@
         {
           "command": "mocknest.copyRequestLogAsCurl",
           "when": "view == mocknest.requestLog && viewItem == requestLogItem",
-          "group": "inline"
+          "group": "inline@1"
+        },
+        {
+          "command": "mocknest.recordRequestAsScenario",
+          "when": "view == mocknest.requestLog && viewItem == requestLogItem",
+          "group": "inline@2"
         },
         {
           "command": "mocknest.setProxyTarget",

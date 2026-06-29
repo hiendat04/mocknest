@@ -124,6 +124,9 @@ export class ApiTesterPanel {
       case "sendRequest":
         await this.handleSendRequest(typedMessage.payload as SendRequestPayload);
         break;
+      case "copySnippet":
+        await this.handleCopySnippet(typedMessage.payload);
+        break;
       default:
         break;
     }
@@ -226,6 +229,22 @@ export class ApiTesterPanel {
       payload: {
         message,
       },
+    });
+  }
+
+  private async handleCopySnippet(payload: unknown): Promise<void> {
+    if (!payload || typeof payload !== "object") {
+      return;
+    }
+
+    const snippet = (payload as { snippet?: unknown }).snippet;
+    if (typeof snippet !== "string" || snippet.trim().length === 0) {
+      return;
+    }
+
+    await vscode.env.clipboard.writeText(snippet);
+    void this.panel.webview.postMessage({
+      type: "snippetCopied",
     });
   }
 
@@ -352,6 +371,15 @@ export class ApiTesterPanel {
     .actions {
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .snippet-toolbar {
+      display: grid;
+      gap: 8px;
+      grid-template-columns: minmax(140px, 220px) auto 1fr;
+      align-items: end;
     }
 
     .status {
@@ -488,6 +516,22 @@ export class ApiTesterPanel {
     </section>
 
     <section class="card">
+      <div class="snippet-toolbar">
+        <div>
+          <div class="label">Request Snippet</div>
+          <select id="snippetFormat">
+            <option value="curl">cURL</option>
+            <option value="fetch">JavaScript fetch</option>
+            <option value="http">HTTP file</option>
+          </select>
+        </div>
+        <button id="copySnippetButton" class="secondary">Copy Snippet</button>
+        <span id="snippetStatus" class="muted"></span>
+      </div>
+      <pre id="requestSnippet" class="mono" style="margin-top: 10px;"></pre>
+    </section>
+
+    <section class="card">
       <div class="label">Endpoint Insight</div>
       <div class="muted" id="endpointSummary">Select a route to see useful contract details.</div>
 
@@ -549,6 +593,10 @@ export class ApiTesterPanel {
     const mockDelayInput = document.getElementById("mockDelay");
     const mockStatusCodeInput = document.getElementById("mockStatusCode");
     const mockExampleKeyInput = document.getElementById("mockExampleKey");
+    const snippetFormatInput = document.getElementById("snippetFormat");
+    const copySnippetButton = document.getElementById("copySnippetButton");
+    const snippetStatus = document.getElementById("snippetStatus");
+    const requestSnippet = document.getElementById("requestSnippet");
     const sendButton = document.getElementById("sendButton");
     const refreshButton = document.getElementById("refreshButton");
 
@@ -569,6 +617,32 @@ export class ApiTesterPanel {
 
     let routeOptions = [];
 
+    [
+      methodInput,
+      baseUrlInput,
+      pathInput,
+      headersInput,
+      bodyInput,
+      mockDelayInput,
+      mockStatusCodeInput,
+      mockExampleKeyInput,
+      snippetFormatInput,
+    ].forEach((input) => {
+      input.addEventListener("input", renderRequestSnippet);
+      input.addEventListener("change", renderRequestSnippet);
+    });
+
+    copySnippetButton.addEventListener("click", () => {
+      const snippet = requestSnippet.textContent || "";
+      if (!snippet.trim()) {
+        return;
+      }
+      vscode.postMessage({
+        type: "copySnippet",
+        payload: { snippet },
+      });
+    });
+
     refreshButton.addEventListener("click", () => {
       vscode.postMessage({ type: "requestRoutes" });
     });
@@ -578,6 +652,7 @@ export class ApiTesterPanel {
       const selected = Number.isNaN(index) ? undefined : routeOptions[index];
       if (!selected) {
         renderRouteInsight(undefined);
+        renderRequestSnippet();
         return;
       }
       applyRoute(selected, true);
@@ -585,40 +660,16 @@ export class ApiTesterPanel {
 
     mockStatusCodeInput.addEventListener("input", () => {
       renderRouteInsight(getSelectedRoute());
+      renderRequestSnippet();
     });
 
     mockExampleKeyInput.addEventListener("input", () => {
       renderRouteInsight(getSelectedRoute());
+      renderRequestSnippet();
     });
 
     sendButton.addEventListener("click", () => {
-      let customHeaders = {};
-      try {
-        const val = headersInput.value.trim();
-        if (val) {
-          customHeaders = JSON.parse(val);
-        }
-      } catch (e) {
-        // Fallback
-      }
-
-      if (mockDelayInput.value) {
-        customHeaders["x-mock-delay"] = mockDelayInput.value;
-      }
-      if (mockStatusCodeInput.value) {
-        customHeaders["x-mock-response-code"] = mockStatusCodeInput.value;
-      }
-      if (mockExampleKeyInput.value) {
-        customHeaders["x-mock-example"] = mockExampleKeyInput.value;
-      }
-
-      const payload = {
-        baseUrl: baseUrlInput.value.trim(),
-        method: methodInput.value.trim(),
-        path: pathInput.value.trim(),
-        headers: JSON.stringify(customHeaders),
-        body: bodyInput.value,
-      };
+      const payload = buildRequestPayloadFromInputs();
 
       const selectedRoute = getSelectedRoute();
       const validationMessage = validateBeforeSend(selectedRoute, payload);
@@ -628,6 +679,7 @@ export class ApiTesterPanel {
         meta.textContent = "";
         contractCheck.className = "mono contract-warn";
         contractCheck.textContent = validationMessage;
+        renderRequestSnippet();
         return;
       }
 
@@ -636,6 +688,7 @@ export class ApiTesterPanel {
       meta.textContent = "";
 
       vscode.postMessage({ type: "sendRequest", payload });
+      renderRequestSnippet();
     });
 
     window.addEventListener("message", (event) => {
@@ -671,6 +724,7 @@ export class ApiTesterPanel {
           routeSelect.value = "0";
           applyRoute(routes[0], false);
         }
+        renderRequestSnippet();
         return;
       }
 
@@ -694,6 +748,7 @@ export class ApiTesterPanel {
           if (path) {
             pathInput.value = path;
           }
+          renderRequestSnippet();
         }
 
         if (scenario) {
@@ -725,6 +780,7 @@ export class ApiTesterPanel {
           }
           
           renderRouteInsight(getSelectedRoute());
+          renderRequestSnippet();
         }
         return;
       }
@@ -749,6 +805,7 @@ export class ApiTesterPanel {
         }
 
         updateContractCheck(getSelectedRoute(), Number(payload.status));
+        renderRequestSnippet();
         return;
       }
 
@@ -760,6 +817,15 @@ export class ApiTesterPanel {
         responseBody.textContent = message.payload && message.payload.message
           ? message.payload.message
           : "Unknown error";
+        renderRequestSnippet();
+        return;
+      }
+
+      if (message.type === "snippetCopied") {
+        snippetStatus.textContent = "Copied";
+        setTimeout(() => {
+          snippetStatus.textContent = "";
+        }, 1600);
       }
     });
 
@@ -767,6 +833,7 @@ export class ApiTesterPanel {
       methodInput.value = route.method;
       pathInput.value = route.examplePath || route.path;
       renderRouteInsight(route);
+      renderRequestSnippet();
 
       if (!shouldFillBody) {
         return;
@@ -780,6 +847,7 @@ export class ApiTesterPanel {
       } else {
         bodyInput.value = "";
       }
+      renderRequestSnippet();
     }
 
     function renderRouteInsight(route) {
@@ -856,6 +924,159 @@ export class ApiTesterPanel {
       contractCheck.textContent =
         "Expected status from OpenAPI: " +
         (bestResponse ? bestResponse.statusCode : route.expectedStatus);
+    }
+
+    function buildRequestPayloadFromInputs() {
+      const customHeaders = parseHeaderInput(headersInput.value);
+
+      if (mockDelayInput.value) {
+        customHeaders["x-mock-delay"] = mockDelayInput.value;
+      }
+      if (mockStatusCodeInput.value) {
+        customHeaders["x-mock-response-code"] = mockStatusCodeInput.value;
+      }
+      if (mockExampleKeyInput.value) {
+        customHeaders["x-mock-example"] = mockExampleKeyInput.value;
+      }
+
+      return {
+        baseUrl: baseUrlInput.value.trim(),
+        method: methodInput.value.trim(),
+        path: pathInput.value.trim(),
+        headers: JSON.stringify(customHeaders),
+        body: bodyInput.value,
+      };
+    }
+
+    function parseHeaderInput(value) {
+      const input = String(value || "").trim();
+      if (!input) {
+        return {};
+      }
+
+      try {
+        const parsed = JSON.parse(input);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          return {};
+        }
+        return Object.fromEntries(
+          Object.entries(parsed).map(([key, val]) => [key, String(val)]),
+        );
+      } catch {
+        return {};
+      }
+    }
+
+    function renderRequestSnippet() {
+      const payload = buildRequestPayloadFromInputs();
+      requestSnippet.textContent = createRequestSnippet(
+        snippetFormatInput.value,
+        payload,
+      );
+    }
+
+    function createRequestSnippet(format, payload) {
+      const method = String(payload.method || "GET").toUpperCase();
+      const url = buildFullUrl(payload.baseUrl, payload.path);
+      const headers = parseHeaderInput(payload.headers);
+      const body = String(payload.body || "").trim();
+      const allowsBody = method !== "GET" && method !== "HEAD";
+
+      if (allowsBody && body && !hasHeader(headers, "content-type")) {
+        headers["Content-Type"] = looksLikeJson(body)
+          ? "application/json"
+          : "text/plain";
+      }
+
+      if (format === "fetch") {
+        return createFetchSnippet({ method, url, headers, body, allowsBody });
+      }
+      if (format === "http") {
+        return createHttpFileSnippet({ method, url, headers, body, allowsBody });
+      }
+      return createCurlSnippet({ method, url, headers, body, allowsBody });
+    }
+
+    function createCurlSnippet(request) {
+      const parts = [
+        "curl -X " + shellQuote(request.method) + " " + shellQuote(request.url),
+      ];
+
+      Object.entries(request.headers).forEach(([key, value]) => {
+        parts.push("-H " + shellQuote(key + ": " + value));
+      });
+
+      if (request.allowsBody && request.body) {
+        parts.push("--data-raw " + shellQuote(request.body));
+      }
+
+      return parts.length === 1
+        ? parts[0]
+        : parts.map((part, index) => index === 0 ? part : "  " + part).join(" \\\\" + "\\n");
+    }
+
+    function createFetchSnippet(request) {
+      const options = {
+        method: request.method,
+      };
+
+      if (Object.keys(request.headers).length > 0) {
+        options.headers = request.headers;
+      }
+
+      if (request.allowsBody && request.body) {
+        options.body = request.body;
+      }
+
+      return [
+        "const response = await fetch(" +
+          JSON.stringify(request.url) +
+          ", " +
+          JSON.stringify(options, null, 2) +
+          ");",
+        "const text = await response.text();",
+        "const data = text ? JSON.parse(text) : null;",
+        "console.log(response.status, data);",
+      ].join("\\n");
+    }
+
+    function createHttpFileSnippet(request) {
+      const lines = [request.method + " " + request.url + " HTTP/1.1"];
+      Object.entries(request.headers).forEach(([key, value]) => {
+        lines.push(key + ": " + value);
+      });
+
+      if (request.allowsBody && request.body) {
+        lines.push("", request.body);
+      }
+
+      return lines.join("\\n");
+    }
+
+    function buildFullUrl(baseUrl, path) {
+      const base = String(baseUrl || "").trim().replace(/\\/+$/, "");
+      const endpoint = String(path || "").trim();
+      if (!base) {
+        return endpoint || "/";
+      }
+      if (!endpoint) {
+        return base;
+      }
+      return base + (endpoint.startsWith("/") ? endpoint : "/" + endpoint);
+    }
+
+    function looksLikeJson(value) {
+      const trimmed = String(value || "").trim();
+      return trimmed.startsWith("{") || trimmed.startsWith("[");
+    }
+
+    function hasHeader(headers, name) {
+      const target = String(name).toLowerCase();
+      return Object.keys(headers).some((key) => key.toLowerCase() === target);
+    }
+
+    function shellQuote(value) {
+      return "'" + String(value).replace(/'/g, "'\\\\''") + "'";
     }
 
     function findBestResponseInUI(route, statusCode) {
@@ -986,6 +1207,7 @@ export class ApiTesterPanel {
     }
 
     vscode.postMessage({ type: "requestRoutes" });
+    renderRequestSnippet();
   </script>
 </body>
 </html>`;
