@@ -5,6 +5,7 @@ import { stopServerCommand } from "./commands/stopServer";
 import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
 import { importRuntimeConfigCommand } from "./commands/importRuntimeConfig";
 import { generateContractCoverageReportCommand } from "./commands/generateContractCoverageReport";
+import { generateContractTestSuiteCommand } from "./commands/generateContractTestSuite";
 import {
   exportRequestLogScenariosCommand,
   recordRequestAsScenarioCommand,
@@ -268,6 +269,13 @@ export function activate(context: vscode.ExtensionContext) {
           routeTreeProvider,
           requestLogProvider.getEntries(),
         );
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.generateContractTestSuite",
+      async () => {
+        await generateContractTestSuiteCommand(routeTreeProvider);
       },
     ),
 

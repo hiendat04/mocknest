@@ -67,6 +67,11 @@
         "icon": "$(graph-line)"
       },
       {
+        "command": "mocknest.generateContractTestSuite",
+        "title": "MockNest: Generate Contract Smoke Test Suite",
+        "icon": "$(checklist)"
+      },
+      {
         "command": "mocknest.recordRequestAsScenario",
         "title": "MockNest: Record Request as Replay Scenario",
         "icon": "$(record)"
@@ -319,19 +324,24 @@
           "group": "navigation@3"
         },
         {
-          "command": "mocknest.exportRuntimeConfig",
+          "command": "mocknest.generateContractTestSuite",
           "when": "view == mocknest.routeTree",
           "group": "navigation@4"
         },
         {
-          "command": "mocknest.clearSelectedSpec",
+          "command": "mocknest.exportRuntimeConfig",
           "when": "view == mocknest.routeTree",
           "group": "navigation@5"
         },
         {
-          "command": "mocknest.openSelectedSpec",
+          "command": "mocknest.clearSelectedSpec",
           "when": "view == mocknest.routeTree",
           "group": "navigation@6"
+        },
+        {
+          "command": "mocknest.openSelectedSpec",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@7"
         },
         {
           "command": "mocknest.toggleChaosMode",
