@@ -4,6 +4,7 @@ import { startServerCommand } from "./commands/startServer";
 import { stopServerCommand } from "./commands/stopServer";
 import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
 import { importRuntimeConfigCommand } from "./commands/importRuntimeConfig";
+import { analyzeContractDriftCommand } from "./commands/analyzeContractDrift";
 import { generateContractCoverageReportCommand } from "./commands/generateContractCoverageReport";
 import { generateContractTestSuiteCommand } from "./commands/generateContractTestSuite";
 import {
@@ -265,6 +266,17 @@ export function activate(context: vscode.ExtensionContext) {
       "mocknest.generateContractCoverageReport",
       async () => {
         await generateContractCoverageReportCommand(
+          context,
+          routeTreeProvider,
+          requestLogProvider.getEntries(),
+        );
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.analyzeContractDrift",
+      async () => {
+        await analyzeContractDriftCommand(
           context,
           routeTreeProvider,
           requestLogProvider.getEntries(),

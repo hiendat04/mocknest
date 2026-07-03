@@ -67,6 +67,11 @@
         "icon": "$(graph-line)"
       },
       {
+        "command": "mocknest.analyzeContractDrift",
+        "title": "MockNest: Analyze Contract Drift",
+        "icon": "$(debug-disconnect)"
+      },
+      {
         "command": "mocknest.generateContractTestSuite",
         "title": "MockNest: Generate Contract Smoke Test Suite",
         "icon": "$(checklist)"
@@ -309,9 +314,14 @@
           "group": "navigation@1"
         },
         {
+          "command": "mocknest.analyzeContractDrift",
+          "when": "view == mocknest.requestLog",
+          "group": "navigation@2"
+        },
+        {
           "command": "mocknest.exportRequestLogScenarios",
           "when": "view == mocknest.requestLog",
-          "group": "navigation@3"
+          "group": "navigation@4"
         },
         {
           "command": "mocknest.copyBaseUrl",
