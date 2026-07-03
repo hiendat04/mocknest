@@ -6,6 +6,7 @@ import { exportRuntimeConfigCommand } from "./commands/exportRuntimeConfig";
 import { importRuntimeConfigCommand } from "./commands/importRuntimeConfig";
 import { analyzeContractDriftCommand } from "./commands/analyzeContractDrift";
 import { generateContractCoverageReportCommand } from "./commands/generateContractCoverageReport";
+import { generateContractChangeReportCommand } from "./commands/generateContractChangeReport";
 import { generateSpecQualityScorecardCommand } from "./commands/generateSpecQualityScorecard";
 import { generateContractTestSuiteCommand } from "./commands/generateContractTestSuite";
 import {
@@ -278,6 +279,13 @@ export function activate(context: vscode.ExtensionContext) {
       "mocknest.generateSpecQualityScorecard",
       async () => {
         await generateSpecQualityScorecardCommand(context, routeTreeProvider);
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.generateContractChangeReport",
+      async () => {
+        await generateContractChangeReportCommand(context, routeTreeProvider);
       },
     ),
 

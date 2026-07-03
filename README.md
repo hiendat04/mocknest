@@ -15,6 +15,7 @@ Current repository state includes:
 - `mocknest-core` package with OpenAPI parsing, fake data generation, and Express-based mock server runtime
 - VS Code extension with route browsing, API testing, request logging, state inspection, chaos controls, and contract coverage reporting
 - spec quality scorecard generation for OpenAPI mockability, schema coverage, examples, and error-path readiness
+- OpenAPI contract change reporting for PR review against a selected baseline spec
 - contract smoke test generation for dependency-free local or CI validation
 - contract drift analysis for observed request-log traffic, statuses, and response body schemas
 - traffic-to-mock scenario recording that turns request log entries into replayable mock overrides
@@ -32,6 +33,8 @@ Use the Request Log to record an observed request as a replay scenario, or expor
 Use the Request Log drift report to compare observed traffic against the OpenAPI contract before sharing a PR or debugging an integration issue.
 
 Use the Route Tree scorecard to find OpenAPI gaps that weaken generated mocks, contract tests, strict validation, or stateful mock workflows.
+
+Use the Route Tree change report to compare the loaded spec against a baseline OpenAPI file before merging API-facing pull requests.
 
 Use the Route Tree to generate `mocknest.contract.test.js`, a dependency-free Node test suite that can run against MockNest locally or any target API through `MOCKNEST_BASE_URL`.
 
@@ -65,6 +68,7 @@ npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
 - exposes commands to start and stop the mock server
 - displays parsed routes in the sidebar tree view
 - grades loaded specs with a mockability and production-readiness scorecard
+- compares loaded specs against baseline contracts for PR-ready change impact reports
 - analyzes request-log traffic for contract drift
 - generates runnable contract smoke tests from parsed routes
 - records API Tester and mock-server traffic as reusable replay scenarios

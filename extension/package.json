@@ -72,6 +72,11 @@
         "icon": "$(search)"
       },
       {
+        "command": "mocknest.generateContractChangeReport",
+        "title": "MockNest: Generate Contract Change Report",
+        "icon": "$(git-compare)"
+      },
+      {
         "command": "mocknest.analyzeContractDrift",
         "title": "MockNest: Analyze Contract Drift",
         "icon": "$(debug-disconnect)"
@@ -344,24 +349,29 @@
           "group": "navigation@4"
         },
         {
-          "command": "mocknest.generateContractTestSuite",
+          "command": "mocknest.generateContractChangeReport",
           "when": "view == mocknest.routeTree",
           "group": "navigation@5"
         },
         {
-          "command": "mocknest.exportRuntimeConfig",
+          "command": "mocknest.generateContractTestSuite",
           "when": "view == mocknest.routeTree",
           "group": "navigation@6"
         },
         {
-          "command": "mocknest.clearSelectedSpec",
+          "command": "mocknest.exportRuntimeConfig",
           "when": "view == mocknest.routeTree",
           "group": "navigation@7"
         },
         {
-          "command": "mocknest.openSelectedSpec",
+          "command": "mocknest.clearSelectedSpec",
           "when": "view == mocknest.routeTree",
           "group": "navigation@8"
+        },
+        {
+          "command": "mocknest.openSelectedSpec",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@9"
         },
         {
           "command": "mocknest.toggleChaosMode",
