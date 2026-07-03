@@ -17,6 +17,7 @@ Current repository state includes:
 - spec quality scorecard generation for OpenAPI mockability, schema coverage, examples, and error-path readiness
 - OpenAPI contract change reporting for PR review against a selected baseline spec
 - contract smoke test generation for dependency-free local or CI validation
+- traffic replay test generation that turns captured request logs into repeatable regression tests
 - contract drift analysis for observed request-log traffic, statuses, and response body schemas
 - traffic-to-mock scenario recording that turns request log entries into replayable mock overrides
 - baseline TypeScript build and lint workflow across packages
@@ -31,6 +32,8 @@ Install the MockNest extension and click the "MockNest" icon in the Activity Bar
 Use the Request Log to record an observed request as a replay scenario, or export the full log as `mocknest-scenarios.json` for later import through the runtime configuration workflow.
 
 Use the Request Log drift report to compare observed traffic against the OpenAPI contract before sharing a PR or debugging an integration issue.
+
+Use the Request Log replay test generator to turn a manual API session or bug reproduction into `mocknest.replay.test.js`, a dependency-free Node regression suite.
 
 Use the Route Tree scorecard to find OpenAPI gaps that weaken generated mocks, contract tests, strict validation, or stateful mock workflows.
 
@@ -71,6 +74,7 @@ npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
 - compares loaded specs against baseline contracts for PR-ready change impact reports
 - analyzes request-log traffic for contract drift
 - generates runnable contract smoke tests from parsed routes
+- converts captured request-log traffic into runnable replay regression tests
 - records API Tester and mock-server traffic as reusable replay scenarios
 - bridges editor actions to core runtime behavior
 

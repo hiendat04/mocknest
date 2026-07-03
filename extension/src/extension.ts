@@ -9,6 +9,7 @@ import { generateContractCoverageReportCommand } from "./commands/generateContra
 import { generateContractChangeReportCommand } from "./commands/generateContractChangeReport";
 import { generateSpecQualityScorecardCommand } from "./commands/generateSpecQualityScorecard";
 import { generateContractTestSuiteCommand } from "./commands/generateContractTestSuite";
+import { generateTrafficReplayTestSuiteCommand } from "./commands/generateTrafficReplayTestSuite";
 import {
   exportRequestLogScenariosCommand,
   recordRequestAsScenarioCommand,
@@ -304,6 +305,13 @@ export function activate(context: vscode.ExtensionContext) {
       "mocknest.generateContractTestSuite",
       async () => {
         await generateContractTestSuiteCommand(routeTreeProvider);
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.generateTrafficReplayTestSuite",
+      async () => {
+        await generateTrafficReplayTestSuiteCommand(requestLogProvider.getEntries());
       },
     ),
 

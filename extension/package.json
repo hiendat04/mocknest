@@ -87,6 +87,11 @@
         "icon": "$(checklist)"
       },
       {
+        "command": "mocknest.generateTrafficReplayTestSuite",
+        "title": "MockNest: Generate Traffic Replay Test Suite",
+        "icon": "$(debug-rerun)"
+      },
+      {
         "command": "mocknest.recordRequestAsScenario",
         "title": "MockNest: Record Request as Replay Scenario",
         "icon": "$(record)"
@@ -329,9 +334,14 @@
           "group": "navigation@2"
         },
         {
+          "command": "mocknest.generateTrafficReplayTestSuite",
+          "when": "view == mocknest.requestLog",
+          "group": "navigation@3"
+        },
+        {
           "command": "mocknest.exportRequestLogScenarios",
           "when": "view == mocknest.requestLog",
-          "group": "navigation@4"
+          "group": "navigation@5"
         },
         {
           "command": "mocknest.copyBaseUrl",
