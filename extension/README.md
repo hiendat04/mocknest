@@ -12,6 +12,7 @@ MockNest is a VS Code extension for running a local mock API server from an Open
 - Compare the loaded OpenAPI spec against a baseline and generate a PR-ready contract change report.
 - Generate dependency-free contract smoke tests for local or CI runs.
 - Generate dependency-free traffic replay tests from captured request logs.
+- Generate importable edge-case scenario packs for errors, empty states, slow responses, and invalid requests.
 - Record request log entries as replay scenarios and export scenario packs.
 - Analyze request-log traffic for status and schema drift from the OpenAPI contract.
 - Inspect request logs and generate a contract coverage report.

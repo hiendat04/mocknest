@@ -8,6 +8,7 @@ import { analyzeContractDriftCommand } from "./commands/analyzeContractDrift";
 import { generateContractCoverageReportCommand } from "./commands/generateContractCoverageReport";
 import { generateContractChangeReportCommand } from "./commands/generateContractChangeReport";
 import { generateSpecQualityScorecardCommand } from "./commands/generateSpecQualityScorecard";
+import { generateEdgeCaseScenarioPackCommand } from "./commands/generateEdgeCaseScenarioPack";
 import { generateContractTestSuiteCommand } from "./commands/generateContractTestSuite";
 import { generateTrafficReplayTestSuiteCommand } from "./commands/generateTrafficReplayTestSuite";
 import {
@@ -287,6 +288,13 @@ export function activate(context: vscode.ExtensionContext) {
       "mocknest.generateContractChangeReport",
       async () => {
         await generateContractChangeReportCommand(context, routeTreeProvider);
+      },
+    ),
+
+    vscode.commands.registerCommand(
+      "mocknest.generateEdgeCaseScenarioPack",
+      async () => {
+        await generateEdgeCaseScenarioPackCommand(routeTreeProvider);
       },
     ),
 

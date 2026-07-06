@@ -92,6 +92,11 @@
         "icon": "$(debug-rerun)"
       },
       {
+        "command": "mocknest.generateEdgeCaseScenarioPack",
+        "title": "MockNest: Generate Edge Case Scenario Pack",
+        "icon": "$(warning)"
+      },
+      {
         "command": "mocknest.recordRequestAsScenario",
         "title": "MockNest: Record Request as Replay Scenario",
         "icon": "$(record)"
@@ -364,24 +369,29 @@
           "group": "navigation@5"
         },
         {
-          "command": "mocknest.generateContractTestSuite",
+          "command": "mocknest.generateEdgeCaseScenarioPack",
           "when": "view == mocknest.routeTree",
           "group": "navigation@6"
         },
         {
-          "command": "mocknest.exportRuntimeConfig",
+          "command": "mocknest.generateContractTestSuite",
           "when": "view == mocknest.routeTree",
           "group": "navigation@7"
         },
         {
-          "command": "mocknest.clearSelectedSpec",
+          "command": "mocknest.exportRuntimeConfig",
           "when": "view == mocknest.routeTree",
           "group": "navigation@8"
         },
         {
-          "command": "mocknest.openSelectedSpec",
+          "command": "mocknest.clearSelectedSpec",
           "when": "view == mocknest.routeTree",
           "group": "navigation@9"
+        },
+        {
+          "command": "mocknest.openSelectedSpec",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@10"
         },
         {
           "command": "mocknest.toggleChaosMode",
