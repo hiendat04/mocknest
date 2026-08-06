@@ -67,6 +67,11 @@
         "icon": "$(graph-line)"
       },
       {
+        "command": "mocknest.runApiQualityGate",
+        "title": "MockNest: Run API Quality Gate",
+        "icon": "$(verified)"
+      },
+      {
         "command": "mocknest.generateSpecQualityScorecard",
         "title": "MockNest: Generate Spec Quality Scorecard",
         "icon": "$(search)"
@@ -313,6 +318,25 @@
           "type": "boolean",
           "default": false,
           "description": "Automatically record successful proxied responses as new mock overrides."
+        },
+        "mocknest.gate.minimumScore": {
+          "type": "number",
+          "default": 80,
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Minimum contract quality score required by the API Quality Gate."
+        },
+        "mocknest.gate.maxBlockingFindings": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum blocking quality findings allowed by the API Quality Gate."
+        },
+        "mocknest.gate.maxBreakingChanges": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "description": "Maximum breaking contract changes allowed by the API Quality Gate."
         }
       }
     },
@@ -354,44 +378,49 @@
           "group": "navigation@2"
         },
         {
-          "command": "mocknest.generateContractCoverageReport",
+          "command": "mocknest.runApiQualityGate",
           "when": "view == mocknest.routeTree",
           "group": "navigation@3"
         },
         {
-          "command": "mocknest.generateSpecQualityScorecard",
+          "command": "mocknest.generateContractCoverageReport",
           "when": "view == mocknest.routeTree",
           "group": "navigation@4"
         },
         {
-          "command": "mocknest.generateContractChangeReport",
+          "command": "mocknest.generateSpecQualityScorecard",
           "when": "view == mocknest.routeTree",
           "group": "navigation@5"
         },
         {
-          "command": "mocknest.generateEdgeCaseScenarioPack",
+          "command": "mocknest.generateContractChangeReport",
           "when": "view == mocknest.routeTree",
           "group": "navigation@6"
         },
         {
-          "command": "mocknest.generateContractTestSuite",
+          "command": "mocknest.generateEdgeCaseScenarioPack",
           "when": "view == mocknest.routeTree",
           "group": "navigation@7"
         },
         {
-          "command": "mocknest.exportRuntimeConfig",
+          "command": "mocknest.generateContractTestSuite",
           "when": "view == mocknest.routeTree",
           "group": "navigation@8"
         },
         {
-          "command": "mocknest.clearSelectedSpec",
+          "command": "mocknest.exportRuntimeConfig",
           "when": "view == mocknest.routeTree",
           "group": "navigation@9"
         },
         {
-          "command": "mocknest.openSelectedSpec",
+          "command": "mocknest.clearSelectedSpec",
           "when": "view == mocknest.routeTree",
           "group": "navigation@10"
+        },
+        {
+          "command": "mocknest.openSelectedSpec",
+          "when": "view == mocknest.routeTree",
+          "group": "navigation@11"
         },
         {
           "command": "mocknest.toggleChaosMode",

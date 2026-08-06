@@ -14,6 +14,7 @@ Current repository state includes:
 - monorepo setup with npm workspaces and Turborepo task orchestration
 - `mocknest-core` package with OpenAPI parsing, fake data generation, and Express-based mock server runtime
 - VS Code extension with route browsing, API testing, request logging, state inspection, chaos controls, and contract coverage reporting
+- shared API Quality Gate for VS Code and CI with readiness scoring, semantic breaking-change detection, policy thresholds, and machine-readable results
 - spec quality scorecard generation for OpenAPI mockability, schema coverage, examples, and error-path readiness
 - OpenAPI contract change reporting for PR review against a selected baseline spec
 - contract smoke test generation for dependency-free local or CI validation
@@ -38,6 +39,8 @@ Use the Request Log replay test generator to turn a manual API session or bug re
 
 Use the Route Tree scorecard to find OpenAPI gaps that weaken generated mocks, contract tests, strict validation, or stateful mock workflows.
 
+Use the Route Tree API Quality Gate to enforce a minimum readiness score and optionally compare the loaded contract with a baseline for consumer-breaking changes. Configure thresholds with `mocknest.gate.minimumScore`, `mocknest.gate.maxBlockingFindings`, and `mocknest.gate.maxBreakingChanges`.
+
 Use the Route Tree change report to compare the loaded spec against a baseline OpenAPI file before merging API-facing pull requests.
 
 Use the Route Tree edge-case pack generator to create importable scenarios, then send the generated `x-mock-case` header to activate a specific error, empty, slow, or invalid-request response.
@@ -61,11 +64,27 @@ npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
 - `--chaos-error-rate <0-1>`: Probability of simulated failures
 - `--strict`: Enable strict request validation
 
+### API Quality Gate
+
+Run the same contract policy used by the VS Code extension in local scripts or CI:
+
+```bash
+npx mocknest gate \
+  --spec ./openapi.yaml \
+  --baseline ./openapi.baseline.yaml \
+  --min-score 80 \
+  --max-blocking 0 \
+  --max-breaking 0
+```
+
+The command exits with `0` when the policy passes, `1` when the contract violates policy, and `2` for invalid input or analysis errors. Use `--format json` for machine-readable output or `--format markdown --output mocknest-gate.md` for a pull-request artifact.
+
 ## Architecture
 
 ### Core package (`packages/core`)
 - reads and dereferences OpenAPI specs
 - extracts route metadata and response schema hints
+- scores contract readiness and detects consumer-breaking API changes through a reusable policy engine
 - spins up a local mock server from parsed routes
 - generates representative fake payloads from schema structure
 
@@ -81,6 +100,7 @@ npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
 - generates importable edge-case scenario packs from parsed OpenAPI routes
 - records API Tester and mock-server traffic as reusable replay scenarios
 - bridges editor actions to core runtime behavior
+- runs the shared API Quality Gate from the Route Tree while the CLI enforces the same decision in CI
 
 ## Getting started
 

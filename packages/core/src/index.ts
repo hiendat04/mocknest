@@ -10,3 +10,23 @@ export type { DeterministicOptions } from "./server/mockServer";
 export type { MockServerLogOptions } from "./server/mockServer";
 export type { RequestHistoryOptions } from "./server/mockServer";
 export type { RequestLogEntry } from "./server/mockServer";
+export {
+  DEFAULT_CONTRACT_GATE_POLICY,
+  analyzeContractQuality,
+  evaluateContractGate,
+  findBreakingContractChanges,
+  renderContractGateMarkdown,
+} from "./analyzer/contractGate";
+export type {
+  BreakingContractChange,
+  ContractChangeCategory,
+  ContractGateFinding,
+  ContractGateFindingCategory,
+  ContractGateFindingSeverity,
+  ContractGatePolicy,
+  ContractGateResult,
+  ContractGateViolation,
+  ContractQualityAnalysis,
+  EvaluateContractGateOptions,
+  RouteQualityScore,
+} from "./analyzer/contractGate";

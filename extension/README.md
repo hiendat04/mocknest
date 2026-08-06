@@ -8,6 +8,7 @@ MockNest is a VS Code extension for running a local mock API server from an Open
 - Browse OpenAPI routes in the Activity Bar.
 - Send requests from the built-in API Tester.
 - Copy API Tester requests as cURL, JavaScript fetch, or `.http` snippets.
+- Run an API Quality Gate that scores contract readiness, detects breaking changes, and uses the same policy engine as CI.
 - Generate a spec quality scorecard for mockability, schema coverage, examples, and error-path readiness.
 - Compare the loaded OpenAPI spec against a baseline and generate a PR-ready contract change report.
 - Generate dependency-free contract smoke tests for local or CI runs.

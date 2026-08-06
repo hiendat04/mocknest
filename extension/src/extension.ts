@@ -11,6 +11,7 @@ import { generateSpecQualityScorecardCommand } from "./commands/generateSpecQual
 import { generateEdgeCaseScenarioPackCommand } from "./commands/generateEdgeCaseScenarioPack";
 import { generateContractTestSuiteCommand } from "./commands/generateContractTestSuite";
 import { generateTrafficReplayTestSuiteCommand } from "./commands/generateTrafficReplayTestSuite";
+import { runApiQualityGateCommand } from "./commands/runApiQualityGate";
 import {
   exportRequestLogScenariosCommand,
   recordRequestAsScenarioCommand,
@@ -265,6 +266,13 @@ export function activate(context: vscode.ExtensionContext) {
       void persistRequestLog(context, requestLogProvider);
       vscode.window.showInformationMessage("MockNest request log cleared.");
     }),
+
+    vscode.commands.registerCommand(
+      "mocknest.runApiQualityGate",
+      async () => {
+        await runApiQualityGateCommand(context, routeTreeProvider);
+      },
+    ),
 
     vscode.commands.registerCommand(
       "mocknest.generateContractCoverageReport",
