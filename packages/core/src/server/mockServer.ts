@@ -632,7 +632,14 @@ export class MockServer {
   stop(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (!this.server) return resolve();
-      this.server.close((err) => (err ? reject(err) : resolve()));
+      this.server.close((err) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        this.server = null;
+        resolve();
+      });
     });
   }
 

@@ -1128,4 +1128,17 @@ describe("MockServer", () => {
     const res4 = await fetch("http://localhost:3029/search?ids=1,2");
     expect(res4.status).toBe(200);
   });
+
+  it("should report isRunning() as false after stop() resolves", async () => {
+    server = new MockServer({
+      port: 3100,
+      routes: [],
+    });
+
+    await server.start();
+    expect(server.isRunning()).toBe(true);
+
+    await server.stop();
+    expect(server.isRunning()).toBe(false);
+  });
 });
