@@ -102,6 +102,7 @@ export class MockServer {
   private requestHistoryOptions: Required<RequestHistoryOptions>;
   private overrideHitCounts: Map<string, number> = new Map();
   private dynamicOverrides: ResponseOverrideRule[] = [];
+  private overrideIdCounter = 0;
 
   constructor(private options: MockServerOptions) {
     this.app = express();
@@ -174,7 +175,7 @@ export class MockServer {
         res.status(400).json({ error: "Invalid override format" });
         return;
       }
-      this.dynamicOverrides.unshift(override);
+      this.dynamicOverrides.unshift(this.ensureOverrideId(override));
       res.json({ ok: true, count: this.dynamicOverrides.length });
     });
 
@@ -189,7 +190,7 @@ export class MockServer {
         res.status(400).json({ error: "Invalid overrides format (must be an array)" });
         return;
       }
-      this.dynamicOverrides = overrides;
+      this.dynamicOverrides = overrides.map((override) => this.ensureOverrideId(override));
       res.json({ ok: true, count: this.dynamicOverrides.length });
     });
   }
@@ -589,7 +590,7 @@ export class MockServer {
 
           if (this.options.proxyRecord && proxyRes.status >= 200 && proxyRes.status < 300) {
             console.log(`[MockNest] Recording proxied response for ${req.method} ${req.path}`);
-            this.dynamicOverrides.unshift({
+            this.dynamicOverrides.unshift(this.ensureOverrideId({
               name: `Recorded: ${req.method} ${req.path}`,
               method: req.method,
               path: req.path,
@@ -601,7 +602,7 @@ export class MockServer {
                 statusCode: proxyRes.status,
                 body: responseBody,
               }
-            });
+            }));
           }
 
           res.status(proxyRes.status).send(data);
@@ -680,6 +681,12 @@ export class MockServer {
     }
 
     return undefined;
+  }
+
+  private ensureOverrideId(override: ResponseOverrideRule): ResponseOverrideRule {
+    if (override.id) return override;
+    this.overrideIdCounter += 1;
+    return { ...override, id: `auto-${this.overrideIdCounter}` };
   }
 }
 

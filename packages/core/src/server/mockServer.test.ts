@@ -1141,4 +1141,48 @@ describe("MockServer", () => {
     await server.stop();
     expect(server.isRunning()).toBe(false);
   });
+
+  it("should keep a stable identity for a once override even after new overrides are recorded on top", async () => {
+    server = new MockServer({
+      port: 3101,
+      routes: [
+        {
+          method: "GET",
+          path: "/coupon",
+          statusCode: 200,
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    await fetch("http://localhost:3101/__mocknest/overrides", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        once: true,
+        response: { statusCode: 200, body: { code: "FIRST" } },
+      }),
+    });
+
+    const first = await fetch("http://localhost:3101/coupon");
+    expect((await first.json() as any).code).toBe("FIRST");
+
+    // Registering a second, unrelated override shifts list positions — this
+    // used to reset the first override's position-derived key and let it
+    // fire again.
+    await fetch("http://localhost:3101/__mocknest/overrides", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        match: { headers: { "x-never-sent": "x" } },
+        response: { statusCode: 200, body: { code: "UNRELATED" } },
+      }),
+    });
+
+    const second = await fetch("http://localhost:3101/coupon");
+    const secondBody = await second.json() as any;
+    expect(secondBody.code).not.toBe("FIRST");
+  });
 });
