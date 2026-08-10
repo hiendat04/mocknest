@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 
 export function watchOpenApiFile(onChange: (uri: vscode.Uri) => void): vscode.Disposable {
-  const watcher = vscode.workspace.createFileSystemWatcher("**/openapi.{yaml,yml,json}");
+  const watcher = vscode.workspace.createFileSystemWatcher("**/{openapi,swagger,api-spec}.{yaml,yml,json}");
 
   const onDidChange = watcher.onDidChange((uri) => onChange(uri));
   const onDidCreate = watcher.onDidCreate((uri) => onChange(uri));
