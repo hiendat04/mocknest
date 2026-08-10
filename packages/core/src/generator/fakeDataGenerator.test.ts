@@ -550,4 +550,21 @@ describe("fakeDataGenerator", () => {
     // At depth > 10, it should return [] rather than {}
     expect(Array.isArray(result)).toBe(true);
   });
+
+  it("should not apply string name heuristics to non-string fields", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        isValid: { type: "boolean" },
+        width: { type: "number" },
+        id: { type: "string" },
+      },
+    } as any;
+
+    const result = generateFakeData(schema);
+
+    expect(typeof result.isValid).toBe("boolean");
+    expect(typeof result.width).toBe("number");
+    expect(typeof result.id).toBe("string");
+  });
 });

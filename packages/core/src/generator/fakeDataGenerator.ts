@@ -242,39 +242,44 @@ function generateValueFromField(
   }
 
   // Prefer semantic values when field names hint at domain meaning.
-  if (name.includes("email")) return fakerInstance.internet.email();
-  if (name.includes("name") && name.includes("first"))
-    return fakerInstance.person.firstName();
-  if (name.includes("name") && name.includes("last"))
-    return fakerInstance.person.lastName();
-  if (name.includes("name")) return fakerInstance.person.fullName();
-  if (name.includes("phone")) return fakerInstance.phone.number();
-  if (name.includes("address")) return fakerInstance.location.streetAddress();
-  if (name.includes("city")) return fakerInstance.location.city();
-  if (name.includes("zip") || name.includes("postcode"))
-    return fakerInstance.location.zipCode();
-  if (name.includes("country")) return fakerInstance.location.country();
-  if (name.includes("company")) return fakerInstance.company.name();
-  if (name.includes("job") || name.includes("title"))
-    return fakerInstance.person.jobTitle();
-  if (name.includes("avatar") || name.includes("portrait"))
-    return fakerInstance.image.avatar();
-  if (name.includes("password")) return fakerInstance.internet.password();
-  if (name.includes("username") || name.includes("user_name"))
-    return fakerInstance.internet.username();
-  if (name.includes("url") || name.includes("image"))
-    return fakerInstance.image.url();
-  if (name.includes("date") || name.includes("time"))
-    return fakerInstance.date.recent().toISOString();
-  if (name.includes("id")) return fakerInstance.string.uuid();
-  if (name.includes("price") || name.includes("amount"))
-    return fakerInstance.number.float({
-      min: schema.minimum ?? 1,
-      max: schema.maximum ?? 999,
-      fractionDigits: 2,
-    });
-  if (name.includes("description") || name.includes("bio"))
-    return fakerInstance.lorem.sentence();
+  // Only applies to string-typed fields — a boolean/number field named
+  // "isValid" or "width" must not be coerced into a UUID just because its
+  // name happens to contain "id".
+  if (resolvedType === "string" || !resolvedType) {
+    if (name.includes("email")) return fakerInstance.internet.email();
+    if (name.includes("name") && name.includes("first"))
+      return fakerInstance.person.firstName();
+    if (name.includes("name") && name.includes("last"))
+      return fakerInstance.person.lastName();
+    if (name.includes("name")) return fakerInstance.person.fullName();
+    if (name.includes("phone")) return fakerInstance.phone.number();
+    if (name.includes("address")) return fakerInstance.location.streetAddress();
+    if (name.includes("city")) return fakerInstance.location.city();
+    if (name.includes("zip") || name.includes("postcode"))
+      return fakerInstance.location.zipCode();
+    if (name.includes("country")) return fakerInstance.location.country();
+    if (name.includes("company")) return fakerInstance.company.name();
+    if (name.includes("job") || name.includes("title"))
+      return fakerInstance.person.jobTitle();
+    if (name.includes("avatar") || name.includes("portrait"))
+      return fakerInstance.image.avatar();
+    if (name.includes("password")) return fakerInstance.internet.password();
+    if (name.includes("username") || name.includes("user_name"))
+      return fakerInstance.internet.username();
+    if (name.includes("url") || name.includes("image"))
+      return fakerInstance.image.url();
+    if (name.includes("date") || name.includes("time"))
+      return fakerInstance.date.recent().toISOString();
+    if (name.includes("id")) return fakerInstance.string.uuid();
+    if (name.includes("price") || name.includes("amount"))
+      return fakerInstance.number.float({
+        min: schema.minimum ?? 1,
+        max: schema.maximum ?? 999,
+        fractionDigits: 2,
+      });
+    if (name.includes("description") || name.includes("bio"))
+      return fakerInstance.lorem.sentence();
+  }
 
   switch (resolvedType) {
     case "string":
