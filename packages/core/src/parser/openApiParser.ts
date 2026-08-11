@@ -58,11 +58,13 @@ export interface ParsedRoute {
   mockDelay?: number;
   mockStatusCode?: number;
   responseOverrides?: ResponseOverrideRule[];
+  security?: OpenAPIV3.SecurityRequirementObject[];
 }
 
 export interface ParseResult {
   routes: ParsedRoute[];
   api: OpenAPIV3.Document;
+  securitySchemes: Record<string, OpenAPIV3.SecuritySchemeObject>;
 }
 
 export async function parseOpenApiFile(
@@ -70,6 +72,7 @@ export async function parseOpenApiFile(
 ): Promise<ParseResult> {
   // Dereference upfront so downstream logic can read concrete schemas.
   const api = (await SwaggerParser.dereference(filePath)) as OpenAPIV3.Document;
+  const securitySchemes = extractSecuritySchemes(api);
 
   const routes: ParsedRoute[] = [];
 
@@ -198,11 +201,39 @@ export async function parseOpenApiFile(
         mockDelay: typeof mockDelay === "number" ? mockDelay : undefined,
         mockStatusCode: typeof mockStatusCode === "number" ? mockStatusCode : undefined,
         responseOverrides: responseOverrides.length > 0 ? responseOverrides : undefined,
+        security: resolveOperationSecurity(operation, api),
       });
     }
   }
 
-  return { routes, api };
+  return { routes, api, securitySchemes };
+}
+
+function extractSecuritySchemes(
+  api: OpenAPIV3.Document,
+): Record<string, OpenAPIV3.SecuritySchemeObject> {
+  const schemes = api.components?.securitySchemes;
+  if (!schemes) return {};
+
+  const resolved: Record<string, OpenAPIV3.SecuritySchemeObject> = {};
+  for (const [name, scheme] of Object.entries(schemes)) {
+    if (!isReferenceObject(scheme)) {
+      resolved[name] = scheme;
+    }
+  }
+  return resolved;
+}
+
+function resolveOperationSecurity(
+  operation: OpenAPIV3.OperationObject,
+  api: OpenAPIV3.Document,
+): OpenAPIV3.SecurityRequirementObject[] | undefined {
+  // An operation's own `security` (including an explicit `[]`, meaning "no
+  // auth for this operation") always wins over the document-level default.
+  if (operation.security !== undefined) {
+    return operation.security;
+  }
+  return api.security;
 }
 
 function convertOpenApiPathToExpress(path: string): string {

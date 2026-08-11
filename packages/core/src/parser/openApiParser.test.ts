@@ -585,4 +585,69 @@ paths:
       }
     }
   });
+
+  it("should extract security schemes and per-route security requirements", async () => {
+    const spec = `
+openapi: 3.0.0
+info:
+  title: Test Security API
+  version: 1.0.0
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    apiKeyAuth:
+      type: apiKey
+      in: header
+      name: x-api-key
+    bearerAuth:
+      type: http
+      scheme: bearer
+paths:
+  /public:
+    get:
+      security: []
+      responses:
+        '200':
+          description: OK
+  /protected:
+    get:
+      security:
+        - apiKeyAuth: []
+        - bearerAuth: []
+      responses:
+        '200':
+          description: OK
+  /inherited:
+    get:
+      responses:
+        '200':
+          description: OK
+`;
+    const tempFile = path.join(__dirname, "temp-spec-security.yaml");
+    fs.writeFileSync(tempFile, spec);
+
+    try {
+      const { routes, securitySchemes } = await parseOpenApiFile(tempFile);
+
+      expect(securitySchemes.apiKeyAuth).toEqual({ type: "apiKey", in: "header", name: "x-api-key" });
+      expect(securitySchemes.bearerAuth).toEqual({ type: "http", scheme: "bearer" });
+
+      const publicRoute = routes.find((r) => r.path === "/public")!;
+      expect(publicRoute.security).toEqual([]);
+
+      const protectedRoute = routes.find((r) => r.path === "/protected")!;
+      expect(protectedRoute.security).toEqual([
+        { apiKeyAuth: [] },
+        { bearerAuth: [] },
+      ]);
+
+      const inheritedRoute = routes.find((r) => r.path === "/inherited")!;
+      expect(inheritedRoute.security).toEqual([{ bearerAuth: [] }]);
+    } finally {
+      if (fs.existsSync(tempFile)) {
+        fs.unlinkSync(tempFile);
+      }
+    }
+  });
 });
