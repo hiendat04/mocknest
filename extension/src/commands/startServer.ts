@@ -29,7 +29,11 @@ export async function startServerCommand(
   const port = config.get<number>("port", 3001);
   const proxyTarget = config.get<string>("proxyTarget", "");
 
-  let parseResult: { routes: ParsedRoute[]; api: any };
+  let parseResult: {
+    routes: ParsedRoute[];
+    api: any;
+    securitySchemes: Record<string, any>;
+  };
   try {
     parseResult = await parseOpenApiFile(specPath);
   } catch (error) {
@@ -38,7 +42,7 @@ export async function startServerCommand(
     return;
   }
 
-  const { routes, api } = parseResult;
+  const { routes, api, securitySchemes } = parseResult;
   routeTreeProvider.refresh(routes);
 
   const delay = config.get<number>("delay", 20);
@@ -46,6 +50,7 @@ export async function startServerCommand(
   const errorRate = config.get<number>("errorRate", 0);
   const errorStatusCodes = config.get<number[]>("errorStatusCodes", [500]);
   const strictValidation = config.get<boolean>("strictValidation", false);
+  const simulateAuth = config.get<boolean>("simulateAuth", false);
   const stateful = config.get<boolean>("stateful", false);
   const statePathConfig = config.get<string>("statePath", ".mocknest/state.json");
   const proxyRecord = config.get<boolean>("proxyRecord", false);
@@ -72,6 +77,8 @@ export async function startServerCommand(
     errorRate,
     errorStatusCodes,
     strictValidation,
+    simulateAuth,
+    securitySchemes,
     stateful,
     statePath,
     proxyRecord,

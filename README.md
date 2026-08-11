@@ -15,6 +15,7 @@ Current repository state includes:
 - `mocknest-core` package with OpenAPI parsing, fake data generation, and Express-based mock server runtime
 - VS Code extension with route browsing, API testing, request logging, state inspection, chaos controls, and contract coverage reporting
 - shared API Quality Gate for VS Code and CI with readiness scoring, semantic breaking-change detection, policy thresholds, and machine-readable results
+- OpenAPI security-scheme simulation: realistic 401/403 responses for routes with unmet auth requirements, toggleable from the CLI, VS Code settings, or the Chaos Controls view
 - spec quality scorecard generation for OpenAPI mockability, schema coverage, examples, and error-path readiness
 - OpenAPI contract change reporting for PR review against a selected baseline spec
 - contract smoke test generation for dependency-free local or CI validation

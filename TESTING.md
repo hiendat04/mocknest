@@ -108,3 +108,16 @@ You are now ready to test the features.
     2.  The status bar item reverts to `$(circle-slash) MockNest: OFF`.
     3.  The "Mock Routes" list in the sidebar becomes empty.
     4.  Running any of the `curl` commands from the previous step should now fail (e.g., "connection refused").
+
+### 6. Command: `MockNest: Toggle Auth Simulation`
+
+-   **Feature:** Returns `401`/`403` for routes whose OpenAPI `security` requirement isn't met by the request, once enabled.
+-   **Test Steps:**
+    1.  Ensure `openapi.yaml` in your test workspace declares a `securitySchemes` entry and at least one operation with a `security` requirement (add one if the sample spec doesn't have it).
+    2.  Open the Command Palette and select `MockNest: Toggle Auth Simulation`. Confirm the "Auth Simulation" row in the Chaos Controls view flips to `ON`.
+    3.  `curl -i` the protected route with no credentials.
+    4.  `curl -i` the same route with the header/credential the spec requires (e.g. `-H "x-api-key: test"`).
+-   **Expected Result:**
+    1.  Step 3 returns `401` with a JSON body `{ "error": "Unauthorized", "details": [...] }`.
+    2.  Step 4 returns the normal mocked response.
+    3.  Repeating step 3 with an added `-H "x-mock-auth: forbidden"` header returns `403` with `{ "error": "Forbidden", ... }` instead.

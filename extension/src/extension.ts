@@ -559,6 +559,21 @@ export function activate(context: vscode.ExtensionContext) {
       );
     }),
 
+    vscode.commands.registerCommand("mocknest.toggleAuthSimulation", async () => {
+      const config = vscode.workspace.getConfiguration("mocknest");
+      const current = config.get<boolean>("simulateAuth", false);
+      const next = !current;
+      await config.update(
+        "simulateAuth",
+        next,
+        vscode.ConfigurationTarget.Workspace,
+      );
+      chaosControlProvider.refresh();
+      vscode.window.showInformationMessage(
+        `Auth simulation ${next ? "enabled" : "disabled"}.`,
+      );
+    }),
+
     vscode.commands.registerCommand("mocknest.toggleStatefulMode", async () => {
       const config = vscode.workspace.getConfiguration("mocknest");
       const current = config.get<boolean>("stateful", false);
@@ -758,6 +773,7 @@ export function activate(context: vscode.ExtensionContext) {
         e.affectsConfiguration("mocknest.errorRate") ||
         e.affectsConfiguration("mocknest.errorStatusCodes") ||
         e.affectsConfiguration("mocknest.strictValidation") ||
+        e.affectsConfiguration("mocknest.simulateAuth") ||
         e.affectsConfiguration("mocknest.stateful") ||
         e.affectsConfiguration("mocknest.proxyTarget")
       ) {

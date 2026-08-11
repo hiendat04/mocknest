@@ -43,6 +43,7 @@ export class ChaosControlProvider
     const errorRate = config.get<number>("errorRate", DEFAULT_ERROR_RATE);
     const errorStatusCodes = config.get<number[]>("errorStatusCodes", [500]);
     const strictValidation = config.get<boolean>("strictValidation", false);
+    const simulateAuth = config.get<boolean>("simulateAuth", false);
     const stateful = config.get<boolean>("stateful", false);
     const proxyTarget = config.get<string>("proxyTarget", "");
     const proxyRecord = config.get<boolean>("proxyRecord", false);
@@ -120,6 +121,14 @@ export class ChaosControlProvider
         "mocknest.strictValidation",
         "Toggle strict request validation against your OpenAPI contract",
         strictValidation ? "shield" : "circle-slash",
+      ),
+      new ChaosControlItem(
+        "Auth Simulation",
+        simulateAuth ? "ON" : "OFF",
+        "mocknest.toggleAuthSimulation",
+        "mocknest.simulateAuth",
+        "Toggle 401/403 simulation for routes with OpenAPI security requirements",
+        simulateAuth ? "key" : "circle-slash",
       ),
       new ChaosControlItem(
         "Reset Controls",

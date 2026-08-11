@@ -177,6 +177,11 @@
         "icon": "$(shield)"
       },
       {
+        "command": "mocknest.toggleAuthSimulation",
+        "title": "MockNest: Toggle Auth Simulation",
+        "icon": "$(key)"
+      },
+      {
         "command": "mocknest.copyBaseUrl",
         "title": "MockNest: Copy Base URL",
         "icon": "$(link-external)"
@@ -298,6 +303,11 @@
           "type": "boolean",
           "default": false,
           "description": "Validate incoming request path/query/body against the OpenAPI contract and return 400 with details when invalid."
+        },
+        "mocknest.simulateAuth": {
+          "type": "boolean",
+          "default": false,
+          "description": "Return 401/403 for routes whose OpenAPI security requirements aren't met by the request (missing/malformed credentials, or forced via the x-mock-auth header)."
         },
         "mocknest.stateful": {
           "type": "boolean",
