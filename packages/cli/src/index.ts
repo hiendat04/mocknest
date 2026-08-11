@@ -14,6 +14,8 @@ interface ServeOptions {
   port: number;
   stateful: boolean;
   strict: boolean;
+
+  simulateAuth: boolean;
   delay: number;
   errorRate: number;
   proxyRecord: boolean;
@@ -84,6 +86,7 @@ async function runServer(args: string[]): Promise<void> {
     port: 3001,
     stateful: false,
     strict: false,
+    simulateAuth: false,
     delay: 20,
     errorRate: 0,
     proxyRecord: false,
@@ -120,6 +123,8 @@ async function runServer(args: string[]): Promise<void> {
       );
     } else if (arg === "--strict") {
       options.strict = true;
+    } else if (arg === "--simulate-auth") {
+      options.simulateAuth = true;
     } else if (arg === "--help" || arg === "-h") {
       printHelp();
       return;
@@ -136,7 +141,7 @@ async function runServer(args: string[]): Promise<void> {
   console.log(`\n[MockNest CLI] Parsing spec: ${absoluteSpecPath}...`);
 
   try {
-    const { routes, api } = await parseOpenApiFile(absoluteSpecPath);
+    const { routes, api, securitySchemes } = await parseOpenApiFile(absoluteSpecPath);
     const server = new MockServer({
       port: options.port,
       routes,
@@ -147,6 +152,8 @@ async function runServer(args: string[]): Promise<void> {
       statePath: options.statePath,
       proxyRecord: options.proxyRecord,
       strictValidation: options.strict,
+      simulateAuth: options.simulateAuth,
+      securitySchemes,
       logging: {
         enabled: true,
         logHeaders: false,
@@ -158,6 +165,9 @@ async function runServer(args: string[]): Promise<void> {
     console.log(`[MockNest CLI] Starting server on port ${options.port}...`);
     if (options.stateful) {
       console.log("[MockNest CLI] Stateful mode: ENABLED");
+    }
+    if (options.simulateAuth) {
+      console.log("[MockNest CLI] Auth simulation: ENABLED");
     }
     if (options.delay > 20) {
       console.log(`[MockNest CLI] Chaos Latency: ${options.delay}ms`);
@@ -434,6 +444,8 @@ Server options:
   --chaos-latency <ms>     Global response latency (default: 20)
   --chaos-error-rate <0-1> Probability of simulated failures (default: 0)
   --strict                 Enable strict request validation
+  --simulate-auth          Return 401/403 for routes whose OpenAPI security
+                            requirements aren't met by the request
   --help, -h               Show this help message
 
 Run "mocknest gate --help" for API quality gate options.

@@ -63,6 +63,7 @@ npx mocknest --spec ./path/to/openapi.yaml --port 3001 --stateful
 - `--chaos-latency <ms>`: Global latency for all responses
 - `--chaos-error-rate <0-1>`: Probability of simulated failures
 - `--strict`: Enable strict request validation
+- `--simulate-auth`: Return 401/403 for routes whose OpenAPI security requirements aren't met by the request
 
 ### API Quality Gate
 
