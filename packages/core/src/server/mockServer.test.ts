@@ -1185,4 +1185,219 @@ describe("MockServer", () => {
     const secondBody = await second.json() as any;
     expect(secondBody.code).not.toBe("FIRST");
   });
+
+  it("should not persist a request to the data store when strict validation rejects it", async () => {
+    server = new MockServer({
+      port: 3102,
+      stateful: true,
+      strictValidation: true,
+      routes: [
+        {
+          method: "POST",
+          path: "/users",
+          statusCode: 201,
+          requestSchema: {
+            type: "object",
+            required: ["name"],
+            properties: { name: { type: "string" } },
+          },
+          responseSchema: {
+            type: "object",
+            properties: { id: { type: "string" }, name: { type: "string" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const rejected = await fetch("http://localhost:3102/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bogusField: "no name here" }),
+    });
+    expect(rejected.status).toBe(400);
+
+    const state = await fetch("http://localhost:3102/__mocknest/state");
+    const stateBody = await state.json() as any;
+    expect(stateBody.users ?? []).toHaveLength(0);
+  });
+
+  it("should set X-MockNest-Response-Validation header when the generated response fails schema validation", async () => {
+    server = new MockServer({
+      port: 3103,
+      strictValidation: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/broken",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            required: ["count"],
+            properties: { count: { type: "number" } },
+          },
+          responseOverrides: [
+            {
+              response: { statusCode: 200, body: { count: "not-a-number" } },
+            },
+          ],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3103/broken");
+    expect(response.status).toBe(200);
+    expect(response.headers.get("x-mocknest-response-validation")).toBe("failed");
+  });
+
+  it("should allow requests to routes without a security requirement even when simulateAuth is enabled", async () => {
+    server = new MockServer({
+      port: 3104,
+      simulateAuth: true,
+      securitySchemes: {
+        apiKeyAuth: { type: "apiKey", in: "header", name: "x-api-key" },
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/health",
+          statusCode: 200,
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3104/health");
+    expect(response.status).toBe(200);
+  });
+
+  it("should return 401 when simulateAuth is enabled and no credentials are provided for a protected route", async () => {
+    server = new MockServer({
+      port: 3105,
+      simulateAuth: true,
+      securitySchemes: {
+        apiKeyAuth: { type: "apiKey", in: "header", name: "x-api-key" },
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/secret",
+          statusCode: 200,
+          security: [{ apiKeyAuth: [] }],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3105/secret");
+    expect(response.status).toBe(401);
+    const body = await response.json() as any;
+    expect(body.error).toBe("Unauthorized");
+    expect(body.details[0]).toContain("apiKeyAuth");
+    expect(response.headers.get("www-authenticate")).toBeTruthy();
+  });
+
+  it("should authorize a request that satisfies one of several security alternatives", async () => {
+    server = new MockServer({
+      port: 3106,
+      simulateAuth: true,
+      securitySchemes: {
+        apiKeyAuth: { type: "apiKey", in: "header", name: "x-api-key" },
+        bearerAuth: { type: "http", scheme: "bearer" },
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/secret",
+          statusCode: 200,
+          security: [{ apiKeyAuth: [] }, { bearerAuth: [] }],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3106/secret", {
+      headers: { Authorization: "Bearer some-token" },
+    });
+    expect(response.status).toBe(200);
+  });
+
+  it("should return 403 when x-mock-auth: forbidden is sent for a protected route", async () => {
+    server = new MockServer({
+      port: 3107,
+      simulateAuth: true,
+      securitySchemes: {
+        bearerAuth: { type: "http", scheme: "bearer" },
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/secret",
+          statusCode: 200,
+          security: [{ bearerAuth: [] }],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const response = await fetch("http://localhost:3107/secret", {
+      headers: {
+        Authorization: "Bearer valid-looking-token",
+        "x-mock-auth": "forbidden",
+      },
+    });
+    expect(response.status).toBe(403);
+    const body = await response.json() as any;
+    expect(body.error).toBe("Forbidden");
+  });
+
+  it("should not persist stateful data when a request is rejected by auth simulation", async () => {
+    server = new MockServer({
+      port: 3108,
+      stateful: true,
+      simulateAuth: true,
+      securitySchemes: {
+        apiKeyAuth: { type: "apiKey", in: "header", name: "x-api-key" },
+      },
+      routes: [
+        {
+          method: "POST",
+          path: "/orders",
+          statusCode: 201,
+          security: [{ apiKeyAuth: [] }],
+          responseSchema: {
+            type: "object",
+            properties: { id: { type: "string" } },
+          },
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const rejected = await fetch("http://localhost:3108/orders", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ item: "widget" }),
+    });
+    expect(rejected.status).toBe(401);
+
+    const state = await fetch("http://localhost:3108/__mocknest/state");
+    const stateBody = await state.json() as any;
+    expect(stateBody.orders ?? []).toHaveLength(0);
+  });
 });

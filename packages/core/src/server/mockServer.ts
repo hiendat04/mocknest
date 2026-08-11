@@ -84,6 +84,8 @@ export interface MockServerOptions {
   errorRate?: number;
   errorStatusCodes?: number[];
   strictValidation?: boolean;
+  simulateAuth?: boolean;
+  securitySchemes?: Record<string, OpenAPIV3.SecuritySchemeObject>;
   stateful?: boolean;
   statePath?: string;
   deterministic?: boolean | DeterministicOptions;
@@ -323,6 +325,81 @@ export class MockServer {
           }
         }
 
+        const sendJson = (
+          sCode: number,
+          payload: unknown,
+          sHeaders?: Record<string, string>,
+        ): void => {
+          this.options.onRequest?.(
+            route.method,
+            req.path,
+            sCode,
+            req.body,
+            payload,
+            req.headers,
+          );
+          this.recordRequest(
+            buildRequestHistoryEntry(
+              req,
+              route.method,
+              sCode,
+              payload,
+              historyOptions,
+              this.requestIdCounter + 1,
+            ),
+          );
+          setTimeout(() => {
+            if (sHeaders) {
+              for (const [name, value] of Object.entries(sHeaders)) {
+                res.setHeader(name, value);
+              }
+            }
+            res.setHeader("Content-Type", "application/json");
+            res.status(sCode).send(JSON.stringify(payload, null, 2));
+          }, delay);
+        };
+
+        // Auth and request-validation guards run before any stateful CRUD
+        // side effect, so a rejected request never mutates the data store.
+        if (this.options.simulateAuth && route.security && route.security.length > 0) {
+          if (req.header("x-mock-auth") === "forbidden") {
+            sendJson(403, {
+              error: "Forbidden",
+              details: ["Forced via x-mock-auth header."],
+            });
+            return;
+          }
+
+          const authResult = evaluateRouteSecurity(
+            req,
+            route.security,
+            this.options.securitySchemes ?? {},
+          );
+          if (!authResult.authorized) {
+            res.setHeader("WWW-Authenticate", authResult.challenge);
+            sendJson(401, {
+              error: "Unauthorized",
+              details: authResult.details,
+            });
+            return;
+          }
+        }
+
+        if (this.options.strictValidation) {
+          const errors = validateRouteRequest(route, req);
+          if (errors.length > 0) {
+            console.warn(
+              `[MockNest] Request validation failed for ${route.method} ${req.path}:`,
+              errors,
+            );
+            sendJson(400, {
+              error: "Request validation failed",
+              details: errors,
+            });
+            return;
+          }
+        }
+
         let fakeBody: any = undefined;
         const pathInfo = this.options.stateful ? parsePathInfo(route.path) : undefined;
 
@@ -352,7 +429,7 @@ export class MockServer {
                 : responseSchema
                   ? generateFakeData(responseSchema, undefined, fakeDataOptions)
                   : {};
-              
+
               const idField = determineIdField(collection, undefined, responseSchema, this.dataStore);
 
               // Ensure it has an ID if it's an object
@@ -405,55 +482,6 @@ export class MockServer {
           }
         }
 
-        const sendJson = (
-          sCode: number,
-          payload: unknown,
-          sHeaders?: Record<string, string>,
-        ): void => {
-          this.options.onRequest?.(
-            route.method,
-            req.path,
-            sCode,
-            req.body,
-            payload,
-            req.headers,
-          );
-          this.recordRequest(
-            buildRequestHistoryEntry(
-              req,
-              route.method,
-              sCode,
-              payload,
-              historyOptions,
-              this.requestIdCounter + 1,
-            ),
-          );
-          setTimeout(() => {
-            if (sHeaders) {
-              for (const [name, value] of Object.entries(sHeaders)) {
-                res.setHeader(name, value);
-              }
-            }
-            res.setHeader("Content-Type", "application/json");
-            res.status(sCode).send(JSON.stringify(payload, null, 2));
-          }, delay);
-        };
-
-        if (this.options.strictValidation) {
-          const errors = validateRouteRequest(route, req);
-          if (errors.length > 0) {
-            console.warn(
-              `[MockNest] Request validation failed for ${route.method} ${req.path}:`,
-              errors,
-            );
-            sendJson(400, {
-              error: "Request validation failed",
-              details: errors,
-            });
-            return;
-          }
-        }
-
         if (override?.response.body !== undefined) {
           fakeBody = override.response.body;
         }
@@ -484,7 +512,7 @@ export class MockServer {
 
         fakeBody = processResponseTemplates(fakeBody, templateContext);
 
-        const templatedHeaders = processResponseTemplates(
+        let templatedHeaders = processResponseTemplates(
           mergeHeaders(responseHeaders, override?.response.headers),
           templateContext
         );
@@ -496,8 +524,10 @@ export class MockServer {
               `[MockNest] Generated response failed validation for ${route.method} ${req.path}:`,
               responseErrors,
             );
-            // We still send the response, but we could optionally add a header or log it specially.
-            // For now, let's just log it to console.
+            templatedHeaders = {
+              ...(templatedHeaders ?? {}),
+              "X-MockNest-Response-Validation": "failed",
+            };
           }
         }
 
@@ -510,7 +540,7 @@ export class MockServer {
               : [500];
             const errorRandom = (deterministicRandom ?? Math.random)();
             const errorCode = errorCodes[Math.floor(errorRandom * errorCodes.length)];
-            
+
             console.error(
               `[MockNest] Simulated ${errorCode} Error for ${route.method} ${req.path}`,
             );
@@ -1131,6 +1161,102 @@ function hashStringToSeed(value: string): number {
   return hash >>> 0;
 }
 
+
+interface SecurityAuthResult {
+  authorized: boolean;
+  details: string[];
+  challenge: string;
+}
+
+function evaluateRouteSecurity(
+  req: Request,
+  security: OpenAPIV3.SecurityRequirementObject[],
+  securitySchemes: Record<string, OpenAPIV3.SecuritySchemeObject>,
+): SecurityAuthResult {
+  const missingByAlternative: string[] = [];
+  let firstChallenge: string | undefined;
+
+  for (const requirement of security) {
+    const schemeNames = Object.keys(requirement);
+    if (schemeNames.length === 0) {
+      // An empty requirement object is OpenAPI's way of saying "or no auth
+      // at all" when offered as one of several alternatives.
+      return { authorized: true, details: [], challenge: "" };
+    }
+
+    const missing: string[] = [];
+    for (const schemeName of schemeNames) {
+      const scheme = securitySchemes[schemeName];
+      if (firstChallenge === undefined) {
+        firstChallenge = describeChallenge(scheme);
+      }
+      if (!isSecuritySchemeSatisfied(req, scheme)) {
+        missing.push(describeScheme(schemeName, scheme));
+      }
+    }
+
+    if (missing.length === 0) {
+      return { authorized: true, details: [], challenge: "" };
+    }
+    missingByAlternative.push(missing.join(" AND "));
+  }
+
+  return {
+    authorized: false,
+    details: missingByAlternative.map((alt) => `Missing credentials for: ${alt}`),
+    challenge: firstChallenge ?? "Bearer",
+  };
+}
+
+function isSecuritySchemeSatisfied(
+  req: Request,
+  scheme: OpenAPIV3.SecuritySchemeObject | undefined,
+): boolean {
+  // An unresolvable scheme name (not present in securitySchemes) fails
+  // closed rather than silently allowing the request through.
+  if (!scheme) return false;
+
+  if (scheme.type === "apiKey") {
+    let value: unknown;
+    if (scheme.in === "header") value = req.header(scheme.name);
+    else if (scheme.in === "query") value = req.query[scheme.name];
+    else if (scheme.in === "cookie") value = (req as any).cookies?.[scheme.name];
+    return typeof value === "string" && value.trim().length > 0;
+  }
+
+  if (scheme.type === "http") {
+    const authorization = req.header("authorization");
+    if (!authorization) return false;
+    const httpScheme = (scheme.scheme || "").toLowerCase();
+    if (httpScheme === "bearer") return /^Bearer\s+\S+/i.test(authorization);
+    if (httpScheme === "basic") return /^Basic\s+\S+/i.test(authorization);
+    return authorization.trim().length > 0;
+  }
+
+  if (scheme.type === "oauth2" || scheme.type === "openIdConnect") {
+    const authorization = req.header("authorization");
+    return typeof authorization === "string" && authorization.trim().length > 0;
+  }
+
+  return false;
+}
+
+function describeScheme(
+  name: string,
+  scheme: OpenAPIV3.SecuritySchemeObject | undefined,
+): string {
+  if (!scheme) return `${name} (unrecognized security scheme)`;
+  if (scheme.type === "apiKey") return `${name} (${scheme.in} '${scheme.name}')`;
+  if (scheme.type === "http") return `${name} (Authorization: ${scheme.scheme ?? "http"})`;
+  return `${name} (${scheme.type})`;
+}
+
+function describeChallenge(scheme: OpenAPIV3.SecuritySchemeObject | undefined): string {
+  if (scheme?.type === "http" && (scheme.scheme || "").toLowerCase() === "basic") {
+    return 'Basic realm="mocknest"';
+  }
+  return "Bearer";
+}
 
 function validateRouteRequest(route: ParsedRoute, req: Request): string[] {
   const errors: string[] = [];
