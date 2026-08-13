@@ -1400,4 +1400,212 @@ describe("MockServer", () => {
     const stateBody = await state.json() as any;
     expect(stateBody.orders ?? []).toHaveLength(0);
   });
+
+  it("should not consume a once override on a request rejected by auth simulation", async () => {
+    server = new MockServer({
+      port: 3109,
+      simulateAuth: true,
+      securitySchemes: {
+        apiKeyAuth: { type: "apiKey", in: "header", name: "x-api-key" },
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/secret",
+          statusCode: 200,
+          security: [{ apiKeyAuth: [] }],
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responseOverrides: [
+            {
+              once: true,
+              response: { statusCode: 200, body: { code: "ONCE" } },
+            },
+          ],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const rejected = await fetch("http://localhost:3109/secret");
+    expect(rejected.status).toBe(401);
+
+    // The override was never delivered, so it must still be pending.
+    const authorized = await fetch("http://localhost:3109/secret", {
+      headers: { "x-api-key": "key-123" },
+    });
+    expect(authorized.status).toBe(200);
+    expect((await authorized.json() as any).code).toBe("ONCE");
+  });
+
+  it("should not consume a once override on a request rejected by strict validation", async () => {
+    server = new MockServer({
+      port: 3110,
+      strictValidation: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/report",
+          statusCode: 200,
+          parameters: [
+            { name: "since", in: "query", required: true, schema: { type: "string" } },
+          ],
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responseOverrides: [
+            {
+              once: true,
+              response: { statusCode: 200, body: { code: "ONCE" } },
+            },
+          ],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const rejected = await fetch("http://localhost:3110/report");
+    expect(rejected.status).toBe(400);
+
+    const accepted = await fetch("http://localhost:3110/report?since=2020-01-01");
+    expect(accepted.status).toBe(200);
+    expect((await accepted.json() as any).code).toBe("ONCE");
+  });
+
+  it("should keep a stable identity for static once overrides when dynamic overrides are added on top", async () => {
+    server = new MockServer({
+      port: 3111,
+      responseOverrides: [
+        {
+          method: "GET",
+          path: "/global-coupon",
+          once: true,
+          response: { statusCode: 200, body: { code: "GLOBAL" } },
+        },
+      ],
+      routes: [
+        {
+          method: "GET",
+          path: "/global-coupon",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responses: [],
+        },
+        {
+          method: "GET",
+          path: "/route-coupon",
+          statusCode: 200,
+          responseSchema: {
+            type: "object",
+            properties: { ok: { type: "boolean" } },
+          },
+          responseOverrides: [
+            {
+              once: true,
+              response: { statusCode: 200, body: { code: "ROUTE" } },
+            },
+          ],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    expect((await (await fetch("http://localhost:3111/global-coupon")).json() as any).code)
+      .toBe("GLOBAL");
+    expect((await (await fetch("http://localhost:3111/route-coupon")).json() as any).code)
+      .toBe("ROUTE");
+
+    // Registering a dynamic override unshifts onto the front of the combined
+    // list, shifting every static override's position by one.
+    await fetch("http://localhost:3111/__mocknest/overrides", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        match: { headers: { "x-never-sent": "x" } },
+        response: { statusCode: 200, body: { code: "UNRELATED" } },
+      }),
+    });
+
+    const globalSecond = await (await fetch("http://localhost:3111/global-coupon")).json() as any;
+    expect(globalSecond.code).not.toBe("GLOBAL");
+    expect(globalSecond).toHaveProperty("ok");
+
+    const routeSecond = await (await fetch("http://localhost:3111/route-coupon")).json() as any;
+    expect(routeSecond.code).not.toBe("ROUTE");
+    expect(routeSecond).toHaveProperty("ok");
+  });
+
+  it("should authorize a cookie-based apiKey security scheme from the Cookie header", async () => {
+    server = new MockServer({
+      port: 3112,
+      simulateAuth: true,
+      securitySchemes: {
+        cookieAuth: { type: "apiKey", in: "cookie", name: "session" },
+      },
+      routes: [
+        {
+          method: "GET",
+          path: "/secret",
+          statusCode: 200,
+          security: [{ cookieAuth: [] }],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const authorized = await fetch("http://localhost:3112/secret", {
+      headers: { Cookie: "theme=dark; session=abc123; locale=en" },
+    });
+    expect(authorized.status).toBe(200);
+
+    const missingCookie = await fetch("http://localhost:3112/secret", {
+      headers: { Cookie: "theme=dark; locale=en" },
+    });
+    expect(missingCookie.status).toBe(401);
+
+    const noCookieHeader = await fetch("http://localhost:3112/secret");
+    expect(noCookieHeader.status).toBe(401);
+  });
+
+  it("should read required cookie parameters from the Cookie header in strict mode", async () => {
+    server = new MockServer({
+      port: 3113,
+      strictValidation: true,
+      routes: [
+        {
+          method: "GET",
+          path: "/prefs",
+          statusCode: 200,
+          parameters: [
+            { name: "sid", in: "cookie", required: true, schema: { type: "string" } },
+          ],
+          responses: [],
+        },
+      ],
+    });
+
+    await server.start();
+
+    const withCookie = await fetch("http://localhost:3113/prefs", {
+      headers: { Cookie: "sid=session-value" },
+    });
+    expect(withCookie.status).toBe(200);
+
+    const withoutCookie = await fetch("http://localhost:3113/prefs");
+    expect(withoutCookie.status).toBe(400);
+  });
 });

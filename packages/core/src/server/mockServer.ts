@@ -114,6 +114,7 @@ export class MockServer {
     this.requestHistoryOptions = normalizeRequestHistoryOptions(
       this.options.requestHistory,
     );
+    this.assignStaticOverrideIds();
     this.registerInternalRoutes();
     this.registerRoutes();
   }
@@ -261,7 +262,12 @@ export class MockServer {
           normalizeHttpStatus(route.statusCode) ??
           200;
 
-        const override = this.selectResponseOverride(req, route);
+        // Match now (the override feeds status code, delay, seed and body
+        // below) but do not record the hit until we know the response is
+        // actually being sent — see commitOverrideHit at the end of the
+        // handler.
+        const overrideMatch = this.matchResponseOverride(req, route);
+        const override = overrideMatch?.override;
         const statusCode =
           normalizeHttpStatus(override?.response.statusCode) ?? baseStatusCode;
 
@@ -561,6 +567,10 @@ export class MockServer {
           }
         }
 
+        // The response is definitely being sent now, so a `once` override may
+        // finally be marked as used.
+        this.commitOverrideHit(overrideMatch?.key);
+
         // Artificial delay to simulate real network.
         sendJson(statusCode, fakeBody, templatedHeaders);
       });
@@ -688,10 +698,16 @@ export class MockServer {
     }
   }
 
-  private selectResponseOverride(
+  /**
+   * Pure lookup: finds the override that applies to this request without
+   * recording a hit. The caller receives the key alongside the override so it
+   * can commit the hit later (see commitOverrideHit) once it knows the
+   * override's response is actually being sent.
+   */
+  private matchResponseOverride(
     req: Request,
     route: ParsedRoute,
-  ): ResponseOverrideRule | undefined {
+  ): { override: ResponseOverrideRule; key: string } | undefined {
     const overrides = collectOverrides(route, this.options.responseOverrides, this.dynamicOverrides);
     if (overrides.length === 0) return undefined;
 
@@ -706,11 +722,45 @@ export class MockServer {
         continue;
       }
 
-      this.overrideHitCounts.set(overrideKey, hitCount + 1);
-      return override;
+      return { override, key: overrideKey };
     }
 
     return undefined;
+  }
+
+  /**
+   * Records that an override was actually delivered. Called only on the path
+   * that sends the override's response, so a request rejected by the auth or
+   * validation guard never burns a `once` override.
+   */
+  private commitOverrideHit(overrideKey: string | undefined): void {
+    if (overrideKey === undefined) return;
+    const hitCount = this.overrideHitCounts.get(overrideKey) ?? 0;
+    this.overrideHitCounts.set(overrideKey, hitCount + 1);
+  }
+
+  /**
+   * Gives every statically configured override (global and per-route) a stable
+   * id at construction time. Without this, an override with no explicit id is
+   * keyed by its position in the combined override list, which shifts whenever
+   * a dynamic override is unshifted onto the front — silently resetting `once`
+   * bookkeeping for unrelated overrides.
+   */
+  private assignStaticOverrideIds(): void {
+    const globalOverrides = this.options.responseOverrides;
+    if (globalOverrides) {
+      for (let index = 0; index < globalOverrides.length; index += 1) {
+        globalOverrides[index] = this.ensureOverrideId(globalOverrides[index]);
+      }
+    }
+
+    for (const route of this.options.routes ?? []) {
+      const routeOverrides = route.responseOverrides;
+      if (!routeOverrides) continue;
+      for (let index = 0; index < routeOverrides.length; index += 1) {
+        routeOverrides[index] = this.ensureOverrideId(routeOverrides[index]);
+      }
+    }
   }
 
   private ensureOverrideId(override: ResponseOverrideRule): ResponseOverrideRule {
@@ -1208,6 +1258,32 @@ function evaluateRouteSecurity(
   };
 }
 
+/**
+ * Reads a single cookie off the raw Cookie header. No cookie-parsing
+ * middleware is mounted (and the project takes no new dependencies), so
+ * req.cookies is always undefined — this is the one place cookies are read.
+ */
+function readCookie(req: Request, name: string): string | undefined {
+  const header = req.headers.cookie;
+  if (!header) return undefined;
+
+  for (const part of header.split(";")) {
+    const separator = part.indexOf("=");
+    if (separator === -1) continue;
+    if (part.slice(0, separator).trim() !== name) continue;
+
+    const rawValue = part.slice(separator + 1).trim();
+    try {
+      return decodeURIComponent(rawValue);
+    } catch {
+      // A malformed percent-escape should not blow up the request.
+      return rawValue;
+    }
+  }
+
+  return undefined;
+}
+
 function isSecuritySchemeSatisfied(
   req: Request,
   scheme: OpenAPIV3.SecuritySchemeObject | undefined,
@@ -1220,7 +1296,7 @@ function isSecuritySchemeSatisfied(
     let value: unknown;
     if (scheme.in === "header") value = req.header(scheme.name);
     else if (scheme.in === "query") value = req.query[scheme.name];
-    else if (scheme.in === "cookie") value = (req as any).cookies?.[scheme.name];
+    else if (scheme.in === "cookie") value = readCookie(req, scheme.name);
     return typeof value === "string" && value.trim().length > 0;
   }
 
@@ -1275,7 +1351,7 @@ function validateRouteRequest(route: ParsedRoute, req: Request): string[] {
         rawValue = req.header(parameter.name);
         break;
       case "cookie":
-        rawValue = (req as any).cookies?.[parameter.name];
+        rawValue = readCookie(req, parameter.name);
         break;
     }
 
